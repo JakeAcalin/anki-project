@@ -4,11 +4,14 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
+from .auth import BasicAuthMiddleware
 from .routers import cards, export, generate, media, project, sources
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 app = FastAPI(title="Anki Card Media Generator")
+
+app.add_middleware(BasicAuthMiddleware)
 
 app.include_router(sources.router)
 app.include_router(media.router)

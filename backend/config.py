@@ -11,9 +11,14 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 MEDIA_DIR = DATA_DIR / "media"
 EXPORT_DIR = DATA_DIR / "exports"
 PROJECT_FILE = DATA_DIR / "project.json"
+HF_CACHE_DIR = DATA_DIR / "hf_cache"
 
-for d in (DATA_DIR, UPLOAD_DIR, MEDIA_DIR, EXPORT_DIR):
+for d in (DATA_DIR, UPLOAD_DIR, MEDIA_DIR, EXPORT_DIR, HF_CACHE_DIR):
     d.mkdir(parents=True, exist_ok=True)
+
+# Keep the (large) Whisper model weights on the persistent data volume so they
+# survive restarts/redeploys instead of being re-downloaded every time.
+os.environ.setdefault("HF_HOME", str(HF_CACHE_DIR))
 
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
 CLAUDE_TEXT_MODEL = os.environ.get("CLAUDE_TEXT_MODEL", "claude-sonnet-5")
@@ -29,4 +34,10 @@ VIDEO_MAX_FRAMES = int(os.environ.get("VIDEO_MAX_FRAMES", "12"))
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "500"))
 
 HOST = os.environ.get("ANKI_APP_HOST", "127.0.0.1")
-PORT = int(os.environ.get("ANKI_APP_PORT", "8000"))
+PORT = int(os.environ.get("PORT", os.environ.get("ANKI_APP_PORT", "8000")))
+
+# If both are set, HTTP Basic Auth is required on every request. Strongly
+# recommended when the app is reachable over the public internet, since an
+# unauthenticated instance lets anyone spend your ANTHROPIC_API_KEY credits.
+APP_USERNAME = os.environ.get("APP_USERNAME", "")
+APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
