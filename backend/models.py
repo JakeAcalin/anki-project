@@ -29,6 +29,11 @@ class MediaKind(str, Enum):
     video_frame = "video_frame"
 
 
+class CardType(str, Enum):
+    basic = "basic"
+    cloze = "cloze"
+
+
 class MediaItem(BaseModel):
     id: str = Field(default_factory=lambda: new_id("media"))
     filename: str
@@ -50,13 +55,16 @@ class Source(BaseModel):
     extracted_text: Optional[str] = None
     stored_filename: Optional[str] = None
     media_ids: List[str] = Field(default_factory=list)
+    highlighted_excerpts: List[str] = Field(default_factory=list)
     created_at: float = Field(default_factory=time.time)
 
 
 class CardDraft(BaseModel):
     id: str = Field(default_factory=lambda: new_id("card"))
-    question: str
-    answer: str
+    card_type: CardType = CardType.basic
+    question: str = ""
+    answer: str = ""
+    cloze_text: str = ""
     explanation: str = ""
     tags: List[str] = Field(default_factory=list)
     media_ids: List[str] = Field(default_factory=list)
@@ -76,6 +84,7 @@ class Project(BaseModel):
 class GenerateRequest(BaseModel):
     source_ids: List[str]
     deck: str = "My Deck"
+    card_type: CardType = CardType.basic
     subject_hint: Optional[str] = None
     instructions: Optional[str] = None
     max_cards: int = 20

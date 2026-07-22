@@ -12,20 +12,25 @@ organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
    - Text stays as-is.
    - Images are captioned by Claude's vision model — that caption becomes
      the source's text content (e.g. a photo of a textbook figure becomes a
-     written description of what it shows).
+     written description of what it shows). Claude also separately flags any
+     text a *student* has marked with a highlighter pen (as opposed to the
+     textbook's own bold/italic/caption emphasis).
    - Audio is transcribed locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (no cloud, no API key).
    - Video has its audio track transcribed the same way, plus keyframes are
-     sampled and captioned so relevant visual moments inform card generation.
-3. **Generate** — Claude reads the processed source material (transcripts,
-   captions) and writes a set of atomic, text-only flashcards: a short
-   question, a short answer, and a detailed explanation (a few digestible
-   bullet points) for the answer side, plus hierarchical tags. Cards never
-   embed the original photo/keyframe — that keeps decks small and fast to
-   sync, and pushes Claude to describe figures/graphs in words instead of
-   relying on a (often low-quality) source image.
+     sampled and captioned so relevant visual moments (and any highlighted
+     text visible in them) inform card generation.
+3. **Generate** — choose **Basic** (question/answer) or **Cloze deletion**
+   (a sentence with a `{{c1::blanked-out}}` phrase) as the card type, then
+   Claude reads the processed source material and writes a set of atomic,
+   text-only flashcards, plus hierarchical tags. If any source has
+   student-highlighted text, the number of cards is chosen automatically —
+   one per highlighted concept — instead of using the manual max-cards
+   setting. Cards never embed the original photo/keyframe — that keeps decks
+   small and fast to sync, and pushes Claude to describe figures/graphs in
+   words instead of relying on a (often low-quality) source image.
 4. **Review & edit** — every field is editable in the browser before export:
-   question, answer, explanation, tags, deck, and inclusion. A live preview
-   shows exactly how the explanation will render on the card.
+   question/answer or cloze text, explanation, tags, deck, and inclusion. A
+   live preview shows exactly how the card will render in Anki.
 5. **Export** — download a standard `.apkg` file and import it into Anki.
 
 ## Architecture

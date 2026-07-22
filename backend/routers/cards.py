@@ -3,15 +3,17 @@ from typing import List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from ..models import CardDraft
+from ..models import CardDraft, CardType
 from ..storage import store
 
 router = APIRouter(prefix="/api/cards", tags=["cards"])
 
 
 class CardUpdate(BaseModel):
+    card_type: Optional[CardType] = None
     question: Optional[str] = None
     answer: Optional[str] = None
+    cloze_text: Optional[str] = None
     explanation: Optional[str] = None
     tags: Optional[List[str]] = None
     media_ids: Optional[List[str]] = None

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .. import config
+from ..models import CardType
 
 _client = None
 
@@ -37,11 +38,44 @@ def _image_block(path: Path) -> Dict[str, Any]:
     }
 
 
-def caption_image(path: Path) -> str:
+CAPTION_TOOL = {
+    "name": "describe_image",
+    "description": "Describe an image for someone building study flashcards from it.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "description": {
+                "type": "string",
+                "description": (
+                    "2-5 sentences describing the image: diagrams, labels, text, charts, "
+                    "or key objects and how they relate to each other."
+                ),
+            },
+            "highlighted_excerpts": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Verbatim text that a STUDENT has marked with a highlighter pen or "
+                    "similar hand-marking (e.g. yellow/pink/green marker strokes over "
+                    "printed text). Do NOT include text that is merely bold, italic, in a "
+                    "caption, or otherwise emphasized by the textbook's own typesetting — "
+                    "only text a reader visibly highlighted themselves after printing. "
+                    "Empty array if there's no such hand-highlighting in the image."
+                ),
+            },
+        },
+        "required": ["description", "highlighted_excerpts"],
+    },
+}
+
+
+def caption_image(path: Path) -> Dict[str, Any]:
     client = _get_client()
     message = client.messages.create(
         model=config.CLAUDE_VISION_MODEL,
-        max_tokens=400,
+        max_tokens=600,
+        tools=[CAPTION_TOOL],
+        tool_choice={"type": "tool", "name": "describe_image"},
         messages=[
             {
                 "role": "user",
@@ -49,81 +83,109 @@ def caption_image(path: Path) -> str:
                     _image_block(path),
                     {
                         "type": "text",
-                        "text": (
-                            "Describe this image for someone building study flashcards. "
-                            "Note any diagrams, labels, text, charts, or key objects and how "
-                            "they relate to each other. Be concrete and detailed, 2-5 sentences."
-                        ),
+                        "text": "Analyze this image for flashcard-building purposes.",
                     },
                 ],
             }
         ],
     )
-    return "".join(block.text for block in message.content if block.type == "text").strip()
-
-
-CARD_TOOL = {
-    "name": "emit_cards",
-    "description": "Emit a set of Anki study flashcards derived from the given source material.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "cards": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "question": {
-                            "type": "string",
-                            "description": (
-                                "The front of the card: one short, focused question, ideally "
-                                "under 15 words. No preamble, no multi-part questions."
-                            ),
-                        },
-                        "answer": {
-                            "type": "string",
-                            "description": (
-                                "The shortest phrase that correctly answers the question — a "
-                                "term, a number, a short clause. Ideally under 10 words. Do not "
-                                "restate the question or repeat the explanation here."
-                            ),
-                        },
-                        "explanation_points": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "2-4 short, plain-text bullet points (no HTML, no markdown, no "
-                                "bullet characters — just the sentence) that give the answer-side "
-                                "depth: mechanism, context, a common misconception, or an example. "
-                                "Each point should be one short, easily digestible sentence, not a "
-                                "paragraph."
-                            ),
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "1-4 hierarchical tags using '::' to separate levels, "
-                                "e.g. 'Biology::CellBiology::Mitochondria'. Broad topic first, "
-                                "specific concept last."
-                            ),
-                        },
-                    },
-                    "required": ["question", "answer", "explanation_points", "tags"],
-                },
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "describe_image":
+            return {
+                "description": block.input.get("description", "").strip(),
+                "highlighted_excerpts": [
+                    h.strip() for h in block.input.get("highlighted_excerpts", []) if h.strip()
+                ],
             }
-        },
-        "required": ["cards"],
+    return {"description": "", "highlighted_excerpts": []}
+
+
+_BASIC_CARD_PROPERTIES = {
+    "question": {
+        "type": "string",
+        "description": (
+            "The front of the card: one short, focused question, ideally under 15 "
+            "words. No preamble, no multi-part questions."
+        ),
+    },
+    "answer": {
+        "type": "string",
+        "description": (
+            "The shortest phrase that correctly answers the question — a term, a "
+            "number, a short clause. Ideally under 10 words. Do not restate the "
+            "question or repeat the explanation here."
+        ),
     },
 }
+
+_CLOZE_CARD_PROPERTIES = {
+    "cloze_text": {
+        "type": "string",
+        "description": (
+            "One short, self-contained sentence with the key term(s) to test wrapped "
+            "in Anki cloze syntax: {{c1::hidden text}}. Example: "
+            "'The powerhouse of the cell is {{c1::the mitochondria}}.' Use a single "
+            "{{c1::...}} per card unless two blanks are only meaningful when tested "
+            "together, in which case use {{c1::...}} and {{c2::...}} in the same "
+            "sentence. Keep the sentence itself short and unambiguous."
+        ),
+    },
+}
+
+_SHARED_CARD_PROPERTIES = {
+    "explanation_points": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": (
+            "2-4 short, plain-text bullet points (no HTML, no markdown, no bullet "
+            "characters — just the sentence) that give the answer-side depth: "
+            "mechanism, context, a common misconception, or an example. Each point "
+            "should be one short, easily digestible sentence, not a paragraph."
+        ),
+    },
+    "tags": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": (
+            "1-4 hierarchical tags using '::' to separate levels, e.g. "
+            "'Biology::CellBiology::Mitochondria'. Broad topic first, specific "
+            "concept last."
+        ),
+    },
+}
+
+
+def _build_card_tool(card_type: CardType) -> Dict[str, Any]:
+    type_properties = _BASIC_CARD_PROPERTIES if card_type == CardType.basic else _CLOZE_CARD_PROPERTIES
+    properties = {**type_properties, **_SHARED_CARD_PROPERTIES}
+    return {
+        "name": "emit_cards",
+        "description": "Emit a set of Anki study flashcards derived from the given source material.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cards": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": properties,
+                        "required": list(properties.keys()),
+                    },
+                }
+            },
+            "required": ["cards"],
+        },
+    }
 
 
 def generate_cards(
     *,
     context_text: str,
+    card_type: CardType,
     subject_hint: Optional[str],
     instructions: Optional[str],
     max_cards: int,
+    auto_count: bool,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
 
@@ -132,19 +194,49 @@ def generate_cards(
         "Read the SOURCE MATERIAL below and produce high-quality flashcards.",
         "Some of it may describe figures, graphs, or photos from the original source "
         "(e.g. 'Fig. 4.19 shows...') — use that description as content, but the cards "
-        "themselves are text-only, so make sure the question/answer/explanation stand "
-        "on their own without requiring the reader to see the original image.",
+        "themselves are text-only, so make sure each card stands on its own without "
+        "requiring the reader to see the original image.",
         "",
         "Rules:",
-        f"- Produce at most {max_cards} cards, prioritizing the most important, testable concepts.",
-        "- Each card must be atomic: one short question, one short answer. Favor many small "
-        "cards over a few big ones — if a topic has several distinct facts, split it into "
-        "separate cards rather than cramming them into one question/answer.",
-        "- Keep 'question' and 'answer' short and easy to scan at a glance. Put depth and "
-        "nuance in 'explanation_points' instead, never in the question or answer themselves.",
-        "- Assign hierarchical tags with '::' (e.g. Topic::Subtopic::Detail). Reuse the same "
-        "top-level tag across related cards so the deck organizes into a clean tree.",
     ]
+
+    if auto_count:
+        prompt_parts.append(
+            "- Some source material below is marked 'HIGHLIGHTED BY STUDENT' — this is text "
+            "the learner specifically flagged as important. Produce exactly one focused card "
+            "per distinct highlighted concept; don't skip any, and don't invent extra cards "
+            "for non-highlighted content unless it's needed to make a highlighted card make "
+            "sense on its own. The number of cards should come from the number of distinct "
+            "highlighted concepts, not a fixed target."
+        )
+    else:
+        prompt_parts.append(
+            f"- Produce at most {max_cards} cards, prioritizing the most important, testable "
+            "concepts."
+        )
+
+    if card_type == CardType.basic:
+        prompt_parts.append(
+            "- Each card must be atomic: one short question, one short answer. Favor many "
+            "small cards over a few big ones — if a topic has several distinct facts, split "
+            "it into separate cards rather than cramming them into one question/answer."
+        )
+        prompt_parts.append(
+            "- Keep 'question' and 'answer' short and easy to scan at a glance. Put depth "
+            "and nuance in 'explanation_points' instead, never in the question or answer "
+            "themselves."
+        )
+    else:
+        prompt_parts.append(
+            "- Each card is a single cloze sentence ('cloze_text') that tests one atomic "
+            "fact. Favor many small cards over cramming multiple unrelated facts into one "
+            "sentence."
+        )
+
+    prompt_parts.append(
+        "- Assign hierarchical tags with '::' (e.g. Topic::Subtopic::Detail). Reuse the same "
+        "top-level tag across related cards so the deck organizes into a clean tree."
+    )
     if subject_hint:
         prompt_parts.append(f"- Root all tags under the subject '{subject_hint}' where sensible.")
     if instructions:
@@ -156,10 +248,11 @@ def generate_cards(
         context_text,
     ]
 
+    tool = _build_card_tool(card_type)
     message = client.messages.create(
         model=config.CLAUDE_TEXT_MODEL,
         max_tokens=8000,
-        tools=[CARD_TOOL],
+        tools=[tool],
         tool_choice={"type": "tool", "name": "emit_cards"},
         messages=[{"role": "user", "content": "\n".join(prompt_parts)}],
     )

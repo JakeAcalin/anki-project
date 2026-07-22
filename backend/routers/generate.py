@@ -15,6 +15,7 @@ def generate(req: GenerateRequest):
         cards = build_cards_from_sources(
             source_ids=req.source_ids,
             deck=req.deck,
+            card_type=req.card_type,
             subject_hint=req.subject_hint,
             instructions=req.instructions,
             max_cards=req.max_cards,

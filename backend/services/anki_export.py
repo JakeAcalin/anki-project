@@ -4,6 +4,9 @@ Hierarchical tags: Anki natively treats '::' inside a tag as a nested tag tree
 in the browser sidebar, so CardDraft.tags are passed straight through.
 Hierarchical decks: a card's `deck` field may itself contain '::' (e.g.
 'Biology::CellBiology') which genanki/Anki treats as a subdeck path.
+
+Two note models are supported, chosen per-card via CardDraft.card_type:
+Basic (Question/Answer) and Cloze (a single sentence with {{c1::...}} blanks).
 """
 import hashlib
 from pathlib import Path
@@ -12,10 +15,11 @@ from typing import List
 import genanki
 
 from .. import config
-from ..models import CardDraft
+from ..models import CardDraft, CardType
 from ..storage import store
 
-MODEL_NAME = "Anki Media Generator - Explained"
+BASIC_MODEL_NAME = "Anki Media Generator - Basic"
+CLOZE_MODEL_NAME = "Anki Media Generator - Cloze"
 
 CSS = """
 .card {
@@ -30,6 +34,8 @@ CSS = """
 .question { font-size: 22px; font-weight: 600; }
 hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
 .answer { font-size: 20px; font-weight: 600; color: #0b5fff; margin-bottom: 12px; }
+.cloze-text { font-size: 22px; font-weight: 500; }
+.cloze { font-weight: 700; color: #0b5fff; }
 .explanation {
   font-size: 16px;
   line-height: 1.55;
@@ -46,11 +52,18 @@ hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
 .answer-images img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
 """
 
-QFMT = '<div class="question">{{Question}}</div>'
-AFMT = (
+BASIC_QFMT = '<div class="question">{{Question}}</div>'
+BASIC_AFMT = (
     '<div class="question">{{Question}}</div>'
     '<hr id="answer">'
     '<div class="answer">{{Answer}}</div>'
+    '{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}'
+    '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}'
+)
+
+CLOZE_QFMT = '<div class="cloze-text">{{cloze:Text}}</div>'
+CLOZE_AFMT = (
+    '<div class="cloze-text">{{cloze:Text}}</div>'
     '{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}'
     '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}'
 )
@@ -61,18 +74,33 @@ def _stable_id(seed: str) -> int:
     return int(digest[:8], 16) % (2**31 - 1) + 1
 
 
-def _build_model() -> genanki.Model:
+def _build_basic_model() -> genanki.Model:
     return genanki.Model(
-        _stable_id(MODEL_NAME),
-        MODEL_NAME,
+        _stable_id(BASIC_MODEL_NAME),
+        BASIC_MODEL_NAME,
         fields=[
             {"name": "Question"},
             {"name": "Answer"},
             {"name": "Explanation"},
             {"name": "Images"},
         ],
-        templates=[{"name": "Card 1", "qfmt": QFMT, "afmt": AFMT}],
+        templates=[{"name": "Card 1", "qfmt": BASIC_QFMT, "afmt": BASIC_AFMT}],
         css=CSS,
+    )
+
+
+def _build_cloze_model() -> genanki.Model:
+    return genanki.Model(
+        _stable_id(CLOZE_MODEL_NAME),
+        CLOZE_MODEL_NAME,
+        fields=[
+            {"name": "Text"},
+            {"name": "Explanation"},
+            {"name": "Images"},
+        ],
+        templates=[{"name": "Cloze", "qfmt": CLOZE_QFMT, "afmt": CLOZE_AFMT}],
+        css=CSS,
+        model_type=genanki.Model.CLOZE,
     )
 
 
@@ -80,7 +108,8 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
     if not cards:
         raise ValueError("No cards to export.")
 
-    model = _build_model()
+    basic_model = _build_basic_model()
+    cloze_model = _build_cloze_model()
     decks_by_name = {}
     media_paths_by_filename = {}  # dedupe: a shared image must appear once in the package
 
@@ -100,12 +129,20 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
             media_paths_by_filename[media.filename] = str(media_path)
             images_html += f'<img src="{media.filename}">'
 
-        note = genanki.Note(
-            model=model,
-            fields=[card.question, card.answer, card.explanation, images_html],
-            tags=[t.replace(" ", "_") for t in card.tags],
-            guid=genanki.guid_for(card.id),
-        )
+        if card.card_type == CardType.cloze:
+            note = genanki.Note(
+                model=cloze_model,
+                fields=[card.cloze_text, card.explanation, images_html],
+                tags=[t.replace(" ", "_") for t in card.tags],
+                guid=genanki.guid_for(card.id),
+            )
+        else:
+            note = genanki.Note(
+                model=basic_model,
+                fields=[card.question, card.answer, card.explanation, images_html],
+                tags=[t.replace(" ", "_") for t in card.tags],
+                guid=genanki.guid_for(card.id),
+            )
         decks_by_name[deck_name].add_note(note)
 
     package = genanki.Package(list(decks_by_name.values()))

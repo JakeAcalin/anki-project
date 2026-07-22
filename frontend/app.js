@@ -5,6 +5,7 @@ const state = {
   deckName: "My Deck",
   claudeConfigured: true,
   selectedSourceIds: new Set(),
+  cardType: "basic",
 };
 
 let pollHandle = null;
@@ -162,6 +163,14 @@ function renderTagCloud() {
     .join("");
 }
 
+function renderClozePreview(text) {
+  const escaped = escapeHtml(text || "");
+  return escaped.replace(
+    /\{\{c\d+::(.*?)(?:::.*?)?\}\}/g,
+    (_match, inner) => `<span class="cloze-blank">${inner}</span>`
+  );
+}
+
 function renderCards() {
   const list = document.getElementById("cardList");
   if (state.cards.length === 0) {
@@ -173,15 +182,27 @@ function renderCards() {
       const images = c.media_ids
         .map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`)
         .join("");
-      return `
-      <div class="card-item ${c.included ? "" : "excluded"}" data-id="${c.id}">
-        <div class="card-item-top">
-          <input type="checkbox" data-field="included" ${c.included ? "checked" : ""} title="Include in export" />
-          <div class="card-fields">
+      const isCloze = c.card_type === "cloze";
+      const frontFields = isCloze
+        ? `
+            <div class="card-field-label">Cloze text</div>
+            <p class="field-hint" style="margin: -4px 0 2px 0;">Wrap the hidden part in <code>{{c1::like this}}</code>.</p>
+            <textarea data-field="cloze_text">${escapeHtml(c.cloze_text)}</textarea>
+            <div class="card-field-label">Preview</div>
+            <div class="explanation-preview cloze-preview" data-preview="cloze_text">${renderClozePreview(c.cloze_text)}</div>`
+        : `
             <div class="card-field-label">Question</div>
             <textarea data-field="question">${escapeHtml(c.question)}</textarea>
             <div class="card-field-label">Answer</div>
-            <textarea data-field="answer">${escapeHtml(c.answer)}</textarea>
+            <textarea data-field="answer">${escapeHtml(c.answer)}</textarea>`;
+
+      return `
+      <div class="card-item ${c.included ? "" : "excluded"}" data-id="${c.id}" data-card-type="${c.card_type}">
+        <div class="card-item-top">
+          <input type="checkbox" data-field="included" ${c.included ? "checked" : ""} title="Include in export" />
+          <div class="card-fields">
+            <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
+            ${frontFields}
             <div class="card-field-label">Explanation (answer-side detail — edit as HTML source)</div>
             <textarea class="explanation" data-field="explanation">${escapeHtml(c.explanation)}</textarea>
             <div class="card-field-label">Preview (what Anki will actually show)</div>
@@ -258,6 +279,15 @@ function wireEvents() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: e.target.value }),
     });
+  });
+
+  document.getElementById("cardTypeToggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-card-type]");
+    if (!btn) return;
+    state.cardType = btn.dataset.cardType;
+    document
+      .querySelectorAll("#cardTypeToggle button")
+      .forEach((b) => b.classList.toggle("active", b === btn));
   });
 
   document.querySelectorAll(".tab-btn").forEach((btn) => {
@@ -338,6 +368,7 @@ function wireEvents() {
         body: JSON.stringify({
           source_ids: sourceIds,
           deck: document.getElementById("deckNameInput").value || "My Deck",
+          card_type: state.cardType,
           subject_hint: document.getElementById("subjectHint").value || null,
           instructions: document.getElementById("instructions").value || null,
           max_cards: parseInt(document.getElementById("maxCards").value, 10) || 20,
@@ -354,12 +385,15 @@ function wireEvents() {
   });
 
   document.getElementById("addCardBtn").addEventListener("click", async () => {
+    const isCloze = state.cardType === "cloze";
     const card = await api("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        question: "New question",
-        answer: "New answer",
+        card_type: state.cardType,
+        question: isCloze ? "" : "New question",
+        answer: isCloze ? "" : "New answer",
+        cloze_text: isCloze ? "This is an example {{c1::cloze deletion}}." : "",
         explanation: "",
         tags: [],
         media_ids: [],
@@ -384,10 +418,12 @@ function wireEvents() {
   });
 
   document.getElementById("cardList").addEventListener("input", (e) => {
-    if (e.target.dataset.field !== "explanation") return;
+    const field = e.target.dataset.field;
+    if (field !== "explanation" && field !== "cloze_text") return;
     const item = e.target.closest(".card-item");
-    const preview = item.querySelector('[data-preview="explanation"]');
-    if (preview) preview.innerHTML = e.target.value;
+    const preview = item.querySelector(`[data-preview="${field}"]`);
+    if (!preview) return;
+    preview.innerHTML = field === "cloze_text" ? renderClozePreview(e.target.value) : e.target.value;
   });
 
   document.getElementById("cardList").addEventListener("click", async (e) => {

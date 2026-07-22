@@ -53,6 +53,12 @@
   <section class="col generate-col">
     <h2>2. Generate Cards</h2>
     <div class="card-box">
+      <label class="field-label">Card type</label>
+      <div id="cardTypeToggle" class="segmented">
+        <button data-card-type="basic" class="active">Basic</button>
+        <button data-card-type="cloze">Cloze deletion</button>
+      </div>
+
       <label class="field-label">Subject (optional root tag)</label>
       <input id="subjectHint" type="text" placeholder="e.g. Biology" />
 
@@ -61,6 +67,7 @@
 
       <label class="field-label">Max cards</label>
       <input id="maxCards" type="number" value="20" min="1" max="100" />
+      <p class="field-hint">Ignored if a source has student-highlighted text — card count is then chosen automatically, one per highlighted concept.</p>
 
       <div class="field-label">Sources to use (must be processed)</div>
       <div id="sourceCheckboxes" class="source-checkboxes"></div>
