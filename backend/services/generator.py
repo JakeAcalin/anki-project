@@ -1,6 +1,7 @@
 """Orchestrates the pipeline: raw Source -> extracted text/media -> Claude ->
 CardDraft objects. This is the only module that talks to both the storage
 layer and the transcription/video/claude_client services."""
+import html
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -79,6 +80,23 @@ def _guess_mime(path: Path) -> str:
     return mimetypes.guess_type(str(path))[0] or "application/octet-stream"
 
 
+def _render_explanation(points: List[str]) -> str:
+    """Build guaranteed-safe HTML from plain-text bullet points instead of
+    trusting an LLM to hand-write valid HTML. Escaping here means a stray
+    '<' or '&' in the model's text can never leak through as a broken tag
+    or show up literally on the card."""
+    items = []
+    for p in points:
+        if not isinstance(p, str):
+            continue
+        cleaned = p.strip().lstrip("-*•").strip()
+        if cleaned:
+            items.append(cleaned)
+    if not items:
+        return ""
+    return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
+
+
 def build_cards_from_sources(
     source_ids: List[str],
     deck: str,
@@ -124,7 +142,7 @@ def build_cards_from_sources(
             CardDraft(
                 question=raw.get("question", "").strip(),
                 answer=raw.get("answer", "").strip(),
-                explanation=raw.get("explanation", "").strip(),
+                explanation=_render_explanation(raw.get("explanation_points", [])),
                 tags=[t.strip() for t in raw.get("tags", []) if t.strip()],
                 media_ids=media_ids,
                 deck=deck,

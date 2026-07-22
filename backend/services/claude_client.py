@@ -75,18 +75,28 @@ CARD_TOOL = {
                     "properties": {
                         "question": {
                             "type": "string",
-                            "description": "The front of the card: a focused, unambiguous question.",
+                            "description": (
+                                "The front of the card: one short, focused question, ideally "
+                                "under 15 words. No preamble, no multi-part questions."
+                            ),
                         },
                         "answer": {
                             "type": "string",
-                            "description": "A concise, direct answer (1-2 sentences).",
-                        },
-                        "explanation": {
-                            "type": "string",
                             "description": (
-                                "A detailed explanation for the answer side, written in HTML "
-                                "using only <p>, <ul>, <li>, <b>, <i>, <br> tags. Cover the "
-                                "reasoning, context, and any nuances a learner needs."
+                                "The shortest phrase that correctly answers the question — a "
+                                "term, a number, a short clause. Ideally under 10 words. Do not "
+                                "restate the question or repeat the explanation here."
+                            ),
+                        },
+                        "explanation_points": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": (
+                                "2-4 short, plain-text bullet points (no HTML, no markdown, no "
+                                "bullet characters — just the sentence) that give the answer-side "
+                                "depth: mechanism, context, a common misconception, or an example. "
+                                "Each point should be one short, easily digestible sentence, not a "
+                                "paragraph."
                             ),
                         },
                         "tags": {
@@ -108,7 +118,7 @@ CARD_TOOL = {
                             ),
                         },
                     },
-                    "required": ["question", "answer", "explanation", "tags"],
+                    "required": ["question", "answer", "explanation_points", "tags"],
                 },
             }
         },
@@ -137,9 +147,11 @@ def generate_cards(
         "",
         "Rules:",
         f"- Produce at most {max_cards} cards, prioritizing the most important, testable concepts.",
-        "- Each card must be atomic: one question, one clear answer.",
-        "- The 'explanation' field is the detailed answer-side writeup: give real depth "
-        "(mechanism, context, common misconceptions, examples), not a restatement of the answer.",
+        "- Each card must be atomic: one short question, one short answer. Favor many small "
+        "cards over a few big ones — if a topic has several distinct facts, split it into "
+        "separate cards rather than cramming them into one question/answer.",
+        "- Keep 'question' and 'answer' short and easy to scan at a glance. Put depth and "
+        "nuance in 'explanation_points' instead, never in the question or answer themselves.",
         "- Assign hierarchical tags with '::' (e.g. Topic::Subtopic::Detail). Reuse the same "
         "top-level tag across related cards so the deck organizes into a clean tree.",
         "- Only attach media_ids when an image genuinely clarifies that specific card's answer.",

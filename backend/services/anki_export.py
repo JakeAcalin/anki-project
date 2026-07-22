@@ -82,7 +82,7 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
 
     model = _build_model()
     decks_by_name = {}
-    media_files: List[str] = []
+    media_paths_by_filename = {}  # dedupe: a shared image must appear once in the package
 
     for card in cards:
         deck_name = card.deck or "Default"
@@ -97,7 +97,7 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
             media_path = config.MEDIA_DIR / media.filename
             if not media_path.exists():
                 continue
-            media_files.append(str(media_path))
+            media_paths_by_filename[media.filename] = str(media_path)
             images_html += f'<img src="{media.filename}">'
 
         note = genanki.Note(
@@ -109,7 +109,7 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
         decks_by_name[deck_name].add_note(note)
 
     package = genanki.Package(list(decks_by_name.values()))
-    package.media_files = media_files
+    package.media_files = list(media_paths_by_filename.values())
 
     out_path = config.EXPORT_DIR / out_filename
     package.write_to_file(str(out_path))
