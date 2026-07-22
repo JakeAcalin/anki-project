@@ -4,14 +4,13 @@ is only reachable when this backend runs on the same computer as Anki
 desktop, with the add-on installed and Anki open -- there is no way to reach
 a user's AnkiWeb account directly, since AnkiWeb has no public API.
 
-Idempotency: AnkiConnect's addNote doesn't accept a caller-supplied id, so we
-stamp every note with a hidden "CardId" field (not referenced by any card
-template, so it never shows on the card face) holding our internal
-CardDraft.id. Re-pushing a card looks up that id via findNotes and updates
-the existing note instead of creating a duplicate.
+Idempotency: rather than stamping a visible field onto every note (which
+cluttered Anki's editor), each CardDraft's own `anki_note_id` records which
+Anki note it became after a successful push. Re-pushing a card updates that
+same note directly; only cards pushed for the first time call addNote.
 """
 import base64
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 import requests
 
@@ -24,6 +23,11 @@ class AnkiConnectError(RuntimeError):
 
 BASIC_SYNC_MODEL = "Anki Media Generator - Basic (Synced)"
 CLOZE_SYNC_MODEL = "Anki Media Generator - Cloze (Synced)"
+
+# Older pushes stamped a hidden field onto notes for matching purposes.
+# That's no longer needed (see module docstring) and cluttered Anki's note
+# editor, so _ensure_models() strips it from any model that still has it.
+_LEGACY_FIELD = "CardId"
 
 
 def _invoke(action: str, **params: Any) -> Any:
@@ -56,6 +60,18 @@ def _model_exists(name: str) -> bool:
     return name in (_invoke("modelNames") or [])
 
 
+def _strip_legacy_field_if_present(model_name: str) -> None:
+    try:
+        fields = _invoke("modelFieldNames", modelName=model_name) or []
+    except AnkiConnectError:
+        return
+    if _LEGACY_FIELD in fields:
+        try:
+            _invoke("modelFieldRemove", modelName=model_name, fieldName=_LEGACY_FIELD)
+        except AnkiConnectError:
+            pass  # not fatal -- worst case the old field lingers, harmless
+
+
 def _ensure_models() -> None:
     from . import anki_export  # reuse the exact same templates/css as .apkg export
 
@@ -63,29 +79,29 @@ def _ensure_models() -> None:
         _invoke(
             "createModel",
             modelName=BASIC_SYNC_MODEL,
-            inOrderFields=["Question", "Answer", "Explanation", "Images", "CardId"],
+            inOrderFields=["Question", "Answer", "Explanation", "Images"],
             css=anki_export.CSS,
             isCloze=False,
             cardTemplates=[
                 {"Name": "Card 1", "Front": anki_export.BASIC_QFMT, "Back": anki_export.BASIC_AFMT}
             ],
         )
+    else:
+        _strip_legacy_field_if_present(BASIC_SYNC_MODEL)
+
     if not _model_exists(CLOZE_SYNC_MODEL):
         _invoke(
             "createModel",
             modelName=CLOZE_SYNC_MODEL,
-            inOrderFields=["Text", "Explanation", "Images", "CardId"],
+            inOrderFields=["Text", "Explanation", "Images"],
             css=anki_export.CSS,
             isCloze=True,
             cardTemplates=[
                 {"Name": "Cloze", "Front": anki_export.CLOZE_QFMT, "Back": anki_export.CLOZE_AFMT}
             ],
         )
-
-
-def _find_note_id(card_id: str) -> Optional[int]:
-    ids = _invoke("findNotes", query=f'"CardId:{card_id}"')
-    return ids[0] if ids else None
+    else:
+        _strip_legacy_field_if_present(CLOZE_SYNC_MODEL)
 
 
 def _upload_media(filename: str, path) -> None:
@@ -95,8 +111,9 @@ def _upload_media(filename: str, path) -> None:
 
 def push_cards(cards: List[Any]) -> Dict[str, Any]:
     """Push CardDraft objects into the local Anki collection: add new ones,
-    update ones that were pushed before (matched by CardId), and skip
-    anything that outright fails so one bad card doesn't block the rest."""
+    update ones that were pushed before (matched by the stored
+    anki_note_id), and skip anything that outright fails so one bad card
+    doesn't block the rest."""
     from ..models import CardType
     from ..storage import store
 
@@ -129,7 +146,6 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
                     "Text": card.cloze_text,
                     "Explanation": card.explanation,
                     "Images": images_html,
-                    "CardId": card.id,
                 }
             else:
                 model_name = BASIC_SYNC_MODEL
@@ -138,21 +154,28 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
                     "Answer": card.answer,
                     "Explanation": card.explanation,
                     "Images": images_html,
-                    "CardId": card.id,
                 }
 
             tags = [t.replace(" ", "_") for t in card.tags]
-            existing_note_id = _find_note_id(card.id)
 
-            if existing_note_id:
-                _invoke("updateNoteFields", note={"id": existing_note_id, "fields": fields})
+            note_id = card.anki_note_id
+            note_updated = False
+            if note_id is not None:
                 try:
-                    _invoke("updateNoteTags", note=existing_note_id, tags=" ".join(tags))
+                    _invoke("updateNoteFields", note={"id": note_id, "fields": fields})
+                    try:
+                        _invoke("updateNoteTags", note=note_id, tags=" ".join(tags))
+                    except AnkiConnectError:
+                        pass  # older AnkiConnect versions may not have this action
+                    note_updated = True
+                    updated.append(card.id)
                 except AnkiConnectError:
-                    pass  # older AnkiConnect versions may not have this action
-                updated.append(card.id)
-            else:
-                _invoke(
+                    # The note this card used to point to is gone (e.g. deleted
+                    # in Anki) -- fall through and add it fresh instead.
+                    note_id = None
+
+            if note_id is None and not note_updated:
+                new_note_id = _invoke(
                     "addNote",
                     note={
                         "deckName": deck_name,
@@ -162,6 +185,8 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
                         "options": {"allowDuplicate": True},
                     },
                 )
+                card.anki_note_id = new_note_id
+                store.update_card(card)
                 added.append(card.id)
 
         except AnkiConnectError as exc:

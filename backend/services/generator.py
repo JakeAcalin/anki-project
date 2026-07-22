@@ -110,6 +110,19 @@ def _render_explanation(points: List[str]) -> str:
     return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
 
 
+def _apply_tag_root(tags: List[str], root: str) -> List[str]:
+    """Prepend `root` to every tag so the deck name is always the shared
+    parent in Anki's tag tree (e.g. root='Pharm' turns 'CardiacDrugs' into
+    'Pharm::CardiacDrugs'). Enforced here rather than left to the prompt,
+    the same lesson as max_cards -- an LLM instruction is a suggestion, not
+    a guarantee."""
+    root = root.strip()
+    if not root:
+        return tags
+    prefix = f"{root}::"
+    return [t if t == root or t.startswith(prefix) else f"{prefix}{t}" for t in tags]
+
+
 def build_cards_from_sources(
     source_ids: List[str],
     deck: str,
@@ -169,10 +182,11 @@ def build_cards_from_sources(
 
     cards = []
     for raw in raw_cards:
+        tags = [t.strip() for t in raw.get("tags", []) if t.strip()]
         common = dict(
             card_type=card_type,
             explanation=_render_explanation(raw.get("explanation_points", [])),
-            tags=[t.strip() for t in raw.get("tags", []) if t.strip()],
+            tags=_apply_tag_root(tags, deck),
             deck=deck,
             source_ids=source_ids,
         )
@@ -229,6 +243,7 @@ def process_daily_notes() -> List[CardDraft]:
         store.mark_daily_notes_processed(notes.processed_length, 0, error=str(exc))
         raise
 
+    deck = store.get_deck_name()
     cards = []
     for raw in raw_cards:
         tags = [t.strip() for t in raw.get("tags", []) if t.strip()]
@@ -240,8 +255,8 @@ def process_daily_notes() -> List[CardDraft]:
                 question=raw.get("question", "").strip(),
                 answer=raw.get("answer", "").strip(),
                 explanation=_render_explanation(raw.get("explanation_points", [])),
-                tags=tags,
-                deck=store.get_deck_name(),
+                tags=_apply_tag_root(tags, deck),
+                deck=deck,
                 source_ids=[],
             )
         )

@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from . import scheduler
+from . import migrations, scheduler
 from .auth import BasicAuthMiddleware
 from .routers import ankiconnect, cards, daily_notes, export, generate, media, project, sources
 
@@ -28,6 +28,7 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 @app.on_event("startup")
 def _on_startup():
+    migrations.run_migrations()
     scheduler.start()
 
 

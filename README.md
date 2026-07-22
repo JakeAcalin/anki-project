@@ -2,8 +2,8 @@
 
 Turn text, images, audio, and video into Anki flashcards. Each card gets a
 short front-side question and a detailed, AI-written back-side explanation,
-organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
-(`Subject::Topic`).
+organized with hierarchical tags rooted at whatever deck it belongs to
+(`DeckName::Subject::Topic::Detail`) and subdecks (`Subject::Topic`).
 
 ## How it works
 
@@ -62,11 +62,12 @@ add-on. This only works when:
 
 Setup is one-time: install the add-on, restart Anki, and the topbar's
 **AnkiConnect** pill turns green whenever Anki is open. Push is idempotent —
-editing a card here and pushing again updates the same Anki note (matched
-internally by a hidden ID field) instead of creating a duplicate. After
-pushing, it also triggers Anki's normal **Sync**, so if you're logged into
-AnkiWeb in the desktop app, the new/updated cards flow to your phone and
-AnkiWeb the same way a manual sync would.
+editing a card here and pushing again updates the same Anki note instead of
+creating a duplicate (tracked internally on this app's side, not via an
+extra field cluttering Anki's note editor). After pushing, it also triggers
+Anki's normal **Sync**, so if you're logged into AnkiWeb in the desktop app,
+the new/updated cards flow to your phone and AnkiWeb the same way a manual
+sync would.
 
 **What this can't do:** there's no public AnkiWeb API, so nothing can push
 cards into your AnkiWeb account directly without Anki desktop being open at

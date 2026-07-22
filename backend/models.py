@@ -72,6 +72,7 @@ class CardDraft(BaseModel):
     source_ids: List[str] = Field(default_factory=list)
     included: bool = True
     archived: bool = False
+    anki_note_id: Optional[int] = None
     created_at: float = Field(default_factory=time.time)
 
 
@@ -89,6 +90,7 @@ class Project(BaseModel):
     cards: List[CardDraft] = Field(default_factory=list)
     deck_name: str = "My Deck"
     daily_notes: DailyNotes = Field(default_factory=DailyNotes)
+    migrated_tag_root: bool = False
 
 
 class GenerateRequest(BaseModel):
