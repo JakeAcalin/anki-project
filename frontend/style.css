@@ -148,6 +148,68 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 }
 .banner.hidden { display: none; }
 
+.view-nav {
+  display: flex; gap: 6px; padding: 10px 24px 0; background: var(--bg);
+}
+.view-nav-btn {
+  padding: 8px 16px; font-size: 13px; font-weight: 650; color: var(--text-muted);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0; transition: color .15s ease, background .15s ease;
+}
+.view-nav-btn.active { color: var(--accent); background: var(--surface); box-shadow: var(--shadow-sm); }
+#createView.hidden, #libraryView.hidden { display: none; }
+
+.library-layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  padding: 24px;
+  align-items: start;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .library-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .library-layout { padding: 16px; gap: 16px; }
+}
+
+.library-sidebar {
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
+  padding: 16px; box-shadow: var(--shadow-sm); position: sticky; top: 90px;
+}
+.library-sidebar input[type=text] { margin-bottom: 10px; }
+.topic-tree-list { list-style: none; margin: 0; padding-left: 14px; }
+.topic-tree > .topic-tree-list { padding-left: 0; }
+.topic-node {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 6px 8px; border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text);
+  text-align: left; transition: background .15s ease, color .15s ease;
+}
+.topic-node:hover { background: var(--surface-2); }
+.topic-node.active { background: var(--accent-soft); color: var(--accent-soft-text); }
+.topic-node-all { margin-bottom: 4px; font-weight: 700; }
+.topic-count { font-size: 11px; color: var(--text-faint); font-weight: 700; }
+.topic-node.active .topic-count { color: var(--accent-soft-text); }
+.topic-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.library-main h2 { text-transform: none; }
+#libraryHeading { font-size: 18px; }
+.library-articles { display: flex; flex-direction: column; gap: 14px; }
+.wiki-card {
+  background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
+  padding: 18px 20px; box-shadow: var(--shadow-sm);
+}
+.wiki-question { font-size: 17px; font-weight: 700; margin: 0 0 8px 0; letter-spacing: -0.01em; text-transform: none; color: var(--text); }
+.wiki-answer { font-size: 15px; font-weight: 650; color: var(--accent); margin-bottom: 8px; }
+.wiki-explanation {
+  font-size: 14.5px; line-height: 1.6; color: var(--text-muted);
+}
+.wiki-explanation p { margin: 0 0 8px 0; }
+.wiki-explanation ul { margin: 4px 0 4px 20px; padding: 0; }
+.wiki-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
+.wiki-deck { font-size: 11px; color: var(--text-faint); margin-left: auto; }
+
 .layout {
   display: grid;
   grid-template-columns: 380px 1fr;
@@ -290,7 +352,7 @@ textarea { resize: vertical; }
 .explanation-preview ul { margin: 4px 0 4px 20px; padding: 0; }
 .explanation-preview:empty::before { content: "(empty)"; color: var(--text-faint); font-style: italic; }
 
-.cloze-preview .cloze-blank {
+.cloze-blank {
   background: var(--accent-soft); color: var(--accent-soft-text); font-weight: 700;
   padding: 1px 6px; border-radius: 5px;
 }

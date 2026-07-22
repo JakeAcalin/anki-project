@@ -17,9 +17,14 @@
   <button id="exportBtn" class="primary-btn">Export .apkg</button>
 </header>
 
+<nav class="view-nav">
+  <button class="view-nav-btn active" data-view="create">✏️ Create</button>
+  <button class="view-nav-btn" data-view="library">📚 Library</button>
+</nav>
+
 <div id="banner" class="banner hidden"></div>
 
-<main class="layout">
+<main id="createView" class="layout">
   <section class="col sources-col">
     <h2>1. Add Sources</h2>
     <div class="card-box">
@@ -81,6 +86,18 @@
     </div>
     <div id="tagCloud" class="tag-cloud"></div>
     <div id="cardList" class="card-list"></div>
+  </section>
+</main>
+
+<main id="libraryView" class="library-layout hidden">
+  <aside class="col library-sidebar">
+    <h2>📚 Topics</h2>
+    <input id="librarySearch" type="text" placeholder="Search questions, answers, tags…" />
+    <div id="topicTree" class="topic-tree"></div>
+  </aside>
+  <section class="col library-main">
+    <h2 id="libraryHeading">All topics</h2>
+    <div id="libraryArticles" class="library-articles"></div>
   </section>
 </main>
 

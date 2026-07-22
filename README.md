@@ -33,6 +33,15 @@ organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
    live preview shows exactly how the card will render in Anki.
 5. **Export** — download a standard `.apkg` file and import it into Anki.
 
+Everything you've built (sources, media, cards) is saved server-side and
+reloads automatically — nothing lives only in the browser tab. Switch to the
+**Library** tab any time to browse everything you've generated as a
+readable, wiki-style reference: a sidebar tree of your hierarchical tags on
+the left, and on the right, every card under the selected topic rendered as
+an article (question/cloze sentence, answer, and the full explanation),
+searchable by keyword. This is a read/reference view, separate from the
+Create tab's editable card list.
+
 ## Architecture
 
 ```

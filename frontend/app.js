@@ -8,6 +8,11 @@ const state = {
   cardType: "basic",
 };
 
+const libraryState = {
+  selectedPath: null, // null = "All topics"
+  search: "",
+};
+
 let pollHandle = null;
 
 // ---------- API helpers ----------
@@ -229,6 +234,106 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ---------- Library view ----------
+
+function buildTagTree(cards) {
+  const root = {};
+  for (const c of cards) {
+    for (const tag of c.tags) {
+      const parts = tag.split("::").map((p) => p.trim()).filter(Boolean);
+      let node = root;
+      let path = [];
+      for (const part of parts) {
+        path.push(part);
+        if (!node[part]) node[part] = { children: {}, path: path.join("::") };
+        node = node[part].children;
+      }
+    }
+  }
+  return root;
+}
+
+function cardsUnderPath(cards, path) {
+  if (!path) return cards;
+  return cards.filter((c) => c.tags.some((t) => t === path || t.startsWith(path + "::")));
+}
+
+function renderTopicTree(node, cards) {
+  const keys = Object.keys(node).sort((a, b) => a.localeCompare(b));
+  if (keys.length === 0) return "";
+  return (
+    '<ul class="topic-tree-list">' +
+    keys
+      .map((key) => {
+        const entry = node[key];
+        const count = cardsUnderPath(cards, entry.path).length;
+        const active = entry.path === libraryState.selectedPath ? "active" : "";
+        const childHtml = renderTopicTree(entry.children, cards);
+        return `
+        <li>
+          <button class="topic-node ${active}" data-path="${escapeHtml(entry.path)}">
+            <span class="topic-name">${escapeHtml(key)}</span>
+            <span class="topic-count">${count}</span>
+          </button>
+          ${childHtml}
+        </li>`;
+      })
+      .join("") +
+    "</ul>"
+  );
+}
+
+function renderLibraryArticles(cards) {
+  if (cards.length === 0) {
+    return `<div class="empty-state">No cards match here yet.</div>`;
+  }
+  return cards
+    .map((c) => {
+      const isCloze = c.card_type === "cloze";
+      const heading = isCloze ? renderClozePreview(c.cloze_text) : escapeHtml(c.question);
+      const answerBlock = isCloze ? "" : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
+      const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
+      const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
+      return `
+      <article class="wiki-card">
+        <h3 class="wiki-question">${heading}</h3>
+        ${answerBlock}
+        ${c.explanation ? `<div class="wiki-explanation">${c.explanation}</div>` : ""}
+        ${images ? `<div class="card-images">${images}</div>` : ""}
+        <div class="wiki-meta">
+          <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
+          ${tagChips}
+          <span class="wiki-deck">Deck: ${escapeHtml(c.deck)}</span>
+        </div>
+      </article>`;
+    })
+    .join("");
+}
+
+function renderLibrary() {
+  const tree = buildTagTree(state.cards);
+  const allActive = !libraryState.selectedPath ? "active" : "";
+  document.getElementById("topicTree").innerHTML =
+    `<button class="topic-node topic-node-all ${allActive}" data-path="">
+       <span class="topic-name">All topics</span>
+       <span class="topic-count">${state.cards.length}</span>
+     </button>` + renderTopicTree(tree, state.cards);
+
+  let cards = cardsUnderPath(state.cards, libraryState.selectedPath);
+  const query = libraryState.search.trim().toLowerCase();
+  if (query) {
+    cards = cards.filter((c) => {
+      const haystack = [c.question, c.answer, c.cloze_text, c.explanation, c.tags.join(" ")]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }
+
+  document.getElementById("libraryHeading").textContent = libraryState.selectedPath || "All topics";
+  document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(cards);
+}
+
 // ---------- actions ----------
 
 async function uploadFiles(files) {
@@ -273,6 +378,29 @@ async function updateCard(id, field, value) {
 // ---------- event wiring ----------
 
 function wireEvents() {
+  document.querySelectorAll(".view-nav-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".view-nav-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const view = btn.dataset.view;
+      document.getElementById("createView").classList.toggle("hidden", view !== "create");
+      document.getElementById("libraryView").classList.toggle("hidden", view !== "library");
+      if (view === "library") renderLibrary();
+    });
+  });
+
+  document.getElementById("topicTree").addEventListener("click", (e) => {
+    const btn = e.target.closest(".topic-node");
+    if (!btn) return;
+    libraryState.selectedPath = btn.dataset.path || null;
+    renderLibrary();
+  });
+
+  document.getElementById("librarySearch").addEventListener("input", (e) => {
+    libraryState.search = e.target.value;
+    renderLibrary();
+  });
+
   document.getElementById("deckNameInput").addEventListener("change", async (e) => {
     await api("/api/project/deck-name", {
       method: "PUT",
