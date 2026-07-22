@@ -22,6 +22,7 @@
 <nav class="view-nav">
   <button class="view-nav-btn active" data-view="create">✏️ Create</button>
   <button class="view-nav-btn" data-view="library">📚 Library</button>
+  <button class="view-nav-btn" data-view="daily">📓 Daily Notes</button>
 </nav>
 
 <div id="banner" class="banner hidden"></div>
@@ -100,6 +101,26 @@
   <section class="col library-main">
     <h2 id="libraryHeading">All topics</h2>
     <div id="libraryArticles" class="library-articles"></div>
+  </section>
+</main>
+
+<main id="dailyNotesView" class="daily-notes-layout hidden">
+  <section class="col daily-notes-col">
+    <h2>📓 Daily Notes</h2>
+    <p class="field-hint daily-notes-intro">
+      Jot down anything you learn throughout the day. Automatically, once a
+      day around <strong id="dailyNotesTime">--:--</strong> (server time),
+      whatever's new since the last run gets turned into cards — no need to
+      do anything else here.
+    </p>
+    <div class="card-box">
+      <textarea id="dailyNotesText" rows="18" placeholder="e.g. Learned that remifentanil has an ultra-short context-sensitive half-time because it's metabolized by plasma esterases..."></textarea>
+      <div class="daily-notes-status">
+        <span id="dailyNotesSaveState">Saved</span>
+        <span id="dailyNotesPendingCount"></span>
+      </div>
+    </div>
+    <div id="dailyNotesRunStatus" class="daily-notes-run-status"></div>
   </section>
 </main>
 

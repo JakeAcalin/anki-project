@@ -70,13 +70,26 @@ cards into your AnkiWeb account directly without Anki desktop being open at
 some point to relay them — "log into AnkiWeb and cards just appear" isn't
 possible with any tool, not just this one.
 
+## Daily Notes
+
+A fourth tab for a different workflow: instead of uploading discrete
+sources, keep one running scratchpad you add a line or two to throughout
+the day (e.g. from your phone, at work). Once a day, at a fixed time
+(`DAILY_NOTES_CARD_TIME` in `.env`, default `23:59` server time), the app
+automatically cards **only the text added since the last run** — it tracks
+a checkpoint so nothing gets carded twice and nothing requires you to press
+a button. Generated cards are tagged `Daily Notes` (plus whatever subject
+tags Claude naturally assigns) so they're easy to find in the Library view
+alongside everything else.
+
 ## Architecture
 
 ```
 backend/
   main.py              FastAPI app + static file serving
   config.py             env-driven configuration
-  models.py              Source / MediaItem / CardDraft / Project schemas
+  scheduler.py           daily background job for Daily Notes card generation
+  models.py              Source / MediaItem / CardDraft / DailyNotes / Project schemas
   storage.py             JSON-file-backed store (single-user, local app)
   services/
     transcription.py     local Whisper speech-to-text
@@ -85,7 +98,8 @@ backend/
     generator.py            orchestrates source processing -> card generation
     anki_export.py          genanki .apkg builder (custom note models, CSS)
     ankiconnect_client.py    pushes/updates cards in a local running Anki desktop
-  routers/                 sources / media / generate / cards / export / project / anki-connect
+  routers/                 sources / media / generate / cards / export / project /
+                            anki-connect / daily-notes
 frontend/
   index.html, style.css, app.js   no-build vanilla JS single-page UI
 ```

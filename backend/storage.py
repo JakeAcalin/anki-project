@@ -2,8 +2,10 @@ import json
 import threading
 from typing import List, Optional
 
+import time
+
 from . import config
-from .models import CardDraft, MediaItem, Project, Source
+from .models import CardDraft, DailyNotes, MediaItem, Project, Source
 
 
 class Store:
@@ -129,6 +131,29 @@ class Store:
         with self._lock:
             self._project = Project()
             self._save()
+
+    # -- daily notes --
+    def get_daily_notes(self) -> DailyNotes:
+        with self._lock:
+            return self._project.daily_notes
+
+    def update_daily_notes_text(self, text: str) -> DailyNotes:
+        with self._lock:
+            self._project.daily_notes.text = text
+            self._save()
+            return self._project.daily_notes
+
+    def mark_daily_notes_processed(
+        self, processed_length: int, card_count: int, error: Optional[str] = None
+    ) -> DailyNotes:
+        with self._lock:
+            notes = self._project.daily_notes
+            notes.processed_length = processed_length
+            notes.last_run_at = time.time()
+            notes.last_run_card_count = card_count
+            notes.last_run_error = error
+            self._save()
+            return notes
 
 
 store = Store()

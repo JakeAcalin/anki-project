@@ -194,3 +194,58 @@ def build_cards_from_sources(
 
     store.add_cards(cards)
     return cards
+
+
+def process_daily_notes() -> List[CardDraft]:
+    """Cards only the text appended to the Daily Notes page since the last
+    run (tracked via a character-offset checkpoint), so re-running never
+    re-cards content that's already been turned into cards."""
+    notes = store.get_daily_notes()
+    new_content = notes.text[notes.processed_length :]
+    # Compute the checkpoint from what we actually read, not by re-reading
+    # notes.text later -- store.get_daily_notes() returns a live reference,
+    # so a concurrent edit could otherwise make us mark newly-typed text as
+    # already processed before it was ever sent to Claude.
+    checkpoint = notes.processed_length + len(new_content)
+
+    if not new_content.strip():
+        store.mark_daily_notes_processed(checkpoint, 0)
+        return []
+
+    try:
+        raw_cards = claude_client.generate_cards(
+            context_text=f"== Daily notes (new since last run) ==\n{new_content}",
+            card_type=CardType.basic,
+            subject_hint=None,
+            instructions=(
+                "These are informal notes jotted down throughout the day, possibly "
+                "on unrelated topics. Pull out the concrete, learnable facts and make "
+                "each one its own card; skip anything too vague or personal to quiz."
+            ),
+            max_cards=25,
+            auto_count=False,
+        )
+    except Exception as exc:  # noqa: BLE001 - record failure, don't crash the scheduler
+        store.mark_daily_notes_processed(notes.processed_length, 0, error=str(exc))
+        raise
+
+    cards = []
+    for raw in raw_cards:
+        tags = [t.strip() for t in raw.get("tags", []) if t.strip()]
+        if "Daily Notes" not in tags:
+            tags = ["Daily Notes"] + tags
+        cards.append(
+            CardDraft(
+                card_type=CardType.basic,
+                question=raw.get("question", "").strip(),
+                answer=raw.get("answer", "").strip(),
+                explanation=_render_explanation(raw.get("explanation_points", [])),
+                tags=tags,
+                deck=store.get_deck_name(),
+                source_ids=[],
+            )
+        )
+
+    store.add_cards(cards)
+    store.mark_daily_notes_processed(checkpoint, len(cards))
+    return cards

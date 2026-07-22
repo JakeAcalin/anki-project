@@ -7,6 +7,8 @@ const state = {
   selectedSourceIds: new Set(),
   cardType: "basic",
   ankiConnectAvailable: false,
+  dailyNotes: { text: "", processed_length: 0, last_run_at: null, last_run_card_count: 0, last_run_error: null },
+  dailyNotesCardTime: "23:59",
 };
 
 const libraryState = {
@@ -15,6 +17,7 @@ const libraryState = {
 };
 
 let pollHandle = null;
+let dailyNotesSaveTimer = null;
 
 // ---------- API helpers ----------
 
@@ -66,6 +69,8 @@ async function loadProject() {
   state.cards = data.cards;
   state.deckName = data.deck_name;
   state.claudeConfigured = data.claude_configured;
+  state.dailyNotes = data.daily_notes;
+  state.dailyNotesCardTime = data.daily_notes_card_time;
   renderAll();
   manageServerPolling();
   refreshAnkiConnectStatus();
@@ -357,6 +362,70 @@ function renderLibrary() {
   document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(cards);
 }
 
+// ---------- Daily Notes view ----------
+
+function relativeTime(unixSeconds) {
+  const diffMs = Date.now() - unixSeconds * 1000;
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} minute${mins === 1 ? "" : "s"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function renderDailyNotesPendingCount() {
+  const textarea = document.getElementById("dailyNotesText");
+  const pending = Math.max(0, textarea.value.length - state.dailyNotes.processed_length);
+  document.getElementById("dailyNotesPendingCount").textContent =
+    pending > 0 ? `${pending} new character${pending === 1 ? "" : "s"} since last run` : "";
+}
+
+function renderDailyNotes() {
+  document.getElementById("dailyNotesTime").textContent = state.dailyNotesCardTime;
+
+  const textarea = document.getElementById("dailyNotesText");
+  if (document.activeElement !== textarea) {
+    textarea.value = state.dailyNotes.text;
+  }
+  renderDailyNotesPendingCount();
+
+  const runStatus = document.getElementById("dailyNotesRunStatus");
+  const parts = [];
+  if (state.dailyNotes.last_run_at) {
+    parts.push(
+      `Last run: ${relativeTime(state.dailyNotes.last_run_at)} — added ${state.dailyNotes.last_run_card_count} card${
+        state.dailyNotes.last_run_card_count === 1 ? "" : "s"
+      }.`
+    );
+  } else {
+    parts.push("No runs yet.");
+  }
+  if (state.dailyNotes.last_run_error) {
+    parts.push(`<span class="error">Last run failed: ${escapeHtml(state.dailyNotes.last_run_error)}</span>`);
+  }
+  runStatus.innerHTML = parts.join(" ");
+}
+
+async function saveDailyNotes(text) {
+  const saveState = document.getElementById("dailyNotesSaveState");
+  saveState.textContent = "Saving…";
+  try {
+    const updated = await api("/api/daily-notes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    state.dailyNotes = updated;
+    saveState.textContent = "Saved";
+    renderDailyNotesPendingCount();
+  } catch (err) {
+    saveState.textContent = "Save failed";
+    showToast(err.message, true);
+  }
+}
+
 // ---------- actions ----------
 
 async function uploadFiles(files) {
@@ -408,7 +477,9 @@ function wireEvents() {
       const view = btn.dataset.view;
       document.getElementById("createView").classList.toggle("hidden", view !== "create");
       document.getElementById("libraryView").classList.toggle("hidden", view !== "library");
+      document.getElementById("dailyNotesView").classList.toggle("hidden", view !== "daily");
       if (view === "library") renderLibrary();
+      if (view === "daily") renderDailyNotes();
     });
   });
 
@@ -422,6 +493,13 @@ function wireEvents() {
   document.getElementById("librarySearch").addEventListener("input", (e) => {
     libraryState.search = e.target.value;
     renderLibrary();
+  });
+
+  document.getElementById("dailyNotesText").addEventListener("input", (e) => {
+    renderDailyNotesPendingCount();
+    document.getElementById("dailyNotesSaveState").textContent = "Editing…";
+    clearTimeout(dailyNotesSaveTimer);
+    dailyNotesSaveTimer = setTimeout(() => saveDailyNotes(e.target.value), 1200);
   });
 
   document.getElementById("deckNameInput").addEventListener("change", async (e) => {

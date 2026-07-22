@@ -366,3 +366,22 @@ textarea { resize: vertical; }
 }
 .toast.error { background: var(--danger); color: white; }
 .toast.hidden { display: none; }
+
+.daily-notes-layout {
+  padding: 24px; max-width: 760px; margin: 0 auto;
+}
+@media (max-width: 640px) {
+  .daily-notes-layout { padding: 16px; }
+}
+#dailyNotesView.hidden { display: none; }
+.daily-notes-intro { margin: 0 0 12px 0; font-size: 13px; }
+.daily-notes-intro strong { color: var(--accent); }
+#dailyNotesText { min-height: 360px; font-size: 15px; line-height: 1.6; }
+.daily-notes-status {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: var(--text-faint); margin-top: 4px;
+}
+.daily-notes-run-status {
+  margin-top: 14px; font-size: 13px; color: var(--text-muted); line-height: 1.6;
+}
+.daily-notes-run-status .error { color: var(--danger); }

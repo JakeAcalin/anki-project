@@ -74,11 +74,20 @@ class CardDraft(BaseModel):
     created_at: float = Field(default_factory=time.time)
 
 
+class DailyNotes(BaseModel):
+    text: str = ""
+    processed_length: int = 0
+    last_run_at: Optional[float] = None
+    last_run_card_count: int = 0
+    last_run_error: Optional[str] = None
+
+
 class Project(BaseModel):
     sources: List[Source] = Field(default_factory=list)
     media: List[MediaItem] = Field(default_factory=list)
     cards: List[CardDraft] = Field(default_factory=list)
     deck_name: str = "My Deck"
+    daily_notes: DailyNotes = Field(default_factory=DailyNotes)
 
 
 class GenerateRequest(BaseModel):

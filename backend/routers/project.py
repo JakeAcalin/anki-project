@@ -19,6 +19,8 @@ def get_project():
         "cards": store.list_cards(),
         "deck_name": store.get_deck_name(),
         "claude_configured": bool(config.ANTHROPIC_API_KEY),
+        "daily_notes": store.get_daily_notes(),
+        "daily_notes_card_time": config.DAILY_NOTES_CARD_TIME,
     }
 
 
