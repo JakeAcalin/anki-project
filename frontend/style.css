@@ -82,7 +82,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 18px;
-  padding: 14px 24px;
+  padding: calc(14px + env(safe-area-inset-top)) 24px 14px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-soft);

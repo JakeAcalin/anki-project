@@ -155,24 +155,25 @@ _SHARED_CARD_PROPERTIES = {
 }
 
 
-def _build_card_tool(card_type: CardType) -> Dict[str, Any]:
+def _build_card_tool(card_type: CardType, max_items: Optional[int] = None) -> Dict[str, Any]:
     type_properties = _BASIC_CARD_PROPERTIES if card_type == CardType.basic else _CLOZE_CARD_PROPERTIES
     properties = {**type_properties, **_SHARED_CARD_PROPERTIES}
+    cards_schema: Dict[str, Any] = {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": properties,
+            "required": list(properties.keys()),
+        },
+    }
+    if max_items is not None:
+        cards_schema["maxItems"] = max_items
     return {
         "name": "emit_cards",
         "description": "Emit a set of Anki study flashcards derived from the given source material.",
         "input_schema": {
             "type": "object",
-            "properties": {
-                "cards": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": properties,
-                        "required": list(properties.keys()),
-                    },
-                }
-            },
+            "properties": {"cards": cards_schema},
             "required": ["cards"],
         },
     }
@@ -248,7 +249,7 @@ def generate_cards(
         context_text,
     ]
 
-    tool = _build_card_tool(card_type)
+    tool = _build_card_tool(card_type, max_items=None if auto_count else max_cards)
     message = client.messages.create(
         model=config.CLAUDE_TEXT_MODEL,
         max_tokens=8000,
@@ -259,5 +260,10 @@ def generate_cards(
 
     for block in message.content:
         if block.type == "tool_use" and block.name == "emit_cards":
-            return block.input.get("cards", [])
+            cards = block.input.get("cards", [])
+            # The prompt above only *asks* Claude to stay under max_cards --
+            # models don't always comply exactly, so enforce it here too.
+            if not auto_count:
+                cards = cards[:max_cards]
+            return cards
     return []

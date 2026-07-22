@@ -178,9 +178,13 @@ anything to the public internet or fiddling with router port-forwarding.
    machine that's normally on anyway).
 4. **Find the host's Tailscale address**: run `tailscale ip -4` on the host
    computer.
-5. **From your phone**, open `http://<that-ip>:8000` in a browser (or Chrome
-   → ⋮ → **Add to Home screen** to make it feel like an installed app). Log
-   in with the username/password from step 2.
+5. **From your phone**, open `http://<that-ip>:8000` in a browser and log in
+   with the username/password from step 2.
+6. **Add it to your home screen** for a real app-like icon and a full-screen
+   launch (no browser address bar): the app ships its own icon and manifest.
+   - **iOS Safari**: Share button → **Add to Home Screen**.
+   - **Android Chrome**: ⋮ menu → **Add to Home screen** (or **Install app**
+     if Chrome offers it).
 
 Since Anki desktop needs to be open on that same computer for **Push to
 Anki** to work, this setup naturally puts everything in one place: the app,
