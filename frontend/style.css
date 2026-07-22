@@ -79,8 +79,9 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 
 .topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
+  gap: 10px 18px;
   padding: 14px 24px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   backdrop-filter: blur(10px);
@@ -89,10 +90,19 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   top: 0;
   z-index: 10;
 }
-.brand { font-weight: 800; font-size: 15px; margin-right: auto; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+.brand { font-weight: 800; font-size: 15px; margin-right: auto; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .deck-name-field { display: flex; align-items: center; gap: 8px; }
-.deck-name-field label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.deck-name-field label { font-size: 12px; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
 .deck-name-field input { padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); width: 220px; background: var(--surface-2); color: var(--text); }
+
+@media (max-width: 640px) {
+  .topbar { padding: 10px 16px; gap: 10px; }
+  .brand { width: 100%; margin-right: 0; font-size: 14px; }
+  .deck-name-field { width: 100%; }
+  .deck-name-field input { width: auto; flex: 1; min-width: 0; }
+  .api-status { order: 1; }
+  #exportBtn { order: 2; margin-left: auto; }
+}
 .api-status {
   font-size: 12px;
   font-weight: 600;
@@ -149,6 +159,9 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 }
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .layout { padding: 16px; gap: 16px; }
 }
 .col { display: flex; flex-direction: column; gap: 12px; }
 
