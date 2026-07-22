@@ -6,6 +6,7 @@ const state = {
   claudeConfigured: true,
   selectedSourceIds: new Set(),
   cardType: "basic",
+  ankiConnectAvailable: false,
 };
 
 const libraryState = {
@@ -67,6 +68,28 @@ async function loadProject() {
   state.claudeConfigured = data.claude_configured;
   renderAll();
   manageServerPolling();
+  refreshAnkiConnectStatus();
+}
+
+async function refreshAnkiConnectStatus() {
+  try {
+    const data = await api("/api/anki-connect/status");
+    state.ankiConnectAvailable = data.available;
+  } catch (_) {
+    state.ankiConnectAvailable = false;
+  }
+  renderAnkiConnectStatus();
+}
+
+function renderAnkiConnectStatus() {
+  const el = document.getElementById("ankiConnectStatus");
+  if (state.ankiConnectAvailable) {
+    el.textContent = "AnkiConnect: connected";
+    el.className = "api-status ok";
+  } else {
+    el.textContent = "AnkiConnect: not running";
+    el.className = "api-status neutral";
+  }
 }
 
 function manageServerPolling() {
@@ -605,6 +628,35 @@ function wireEvents() {
       showToast(err.message, true);
     }
   });
+
+  document.getElementById("pushAnkiBtn").addEventListener("click", async () => {
+    const included = state.cards.filter((c) => c.included);
+    if (included.length === 0) return showToast("No cards marked for export.", true);
+    const btn = document.getElementById("pushAnkiBtn");
+    btn.disabled = true;
+    btn.textContent = "Pushing…";
+    try {
+      const result = await api("/api/anki-connect/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sync_after: true }),
+      });
+      const parts = [];
+      if (result.added.length) parts.push(`${result.added.length} added`);
+      if (result.updated.length) parts.push(`${result.updated.length} updated`);
+      if (result.failed.length) parts.push(`${result.failed.length} failed`);
+      const syncNote = result.synced ? ", synced to AnkiWeb" : result.sync_error ? " (sync failed)" : "";
+      showToast(`Pushed to Anki: ${parts.join(", ") || "nothing to do"}${syncNote}`, result.failed.length > 0);
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "📤 Push to Anki";
+      refreshAnkiConnectStatus();
+    }
+  });
+
+  setInterval(refreshAnkiConnectStatus, 15000);
 }
 
 wireEvents();

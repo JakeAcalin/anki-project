@@ -101,7 +101,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   .deck-name-field { width: 100%; }
   .deck-name-field input { width: auto; flex: 1; min-width: 0; }
   .api-status { order: 1; }
-  #exportBtn { order: 2; margin-left: auto; }
+  #pushAnkiBtn, #exportBtn { order: 2; }
 }
 .api-status {
   font-size: 12px;
@@ -117,6 +117,8 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .api-status.ok::before { background: var(--green); }
 .api-status.bad { background: var(--danger-soft); color: var(--danger); }
 .api-status.bad::before { background: var(--danger); }
+.api-status.neutral { background: var(--surface-2); color: var(--text-faint); }
+.api-status.neutral::before { background: var(--text-faint); }
 
 button { cursor: pointer; font-family: inherit; appearance: none; border: none; background: none; color: inherit; }
 

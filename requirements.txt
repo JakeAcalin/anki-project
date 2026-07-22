@@ -6,3 +6,5 @@ python-dotenv>=1.0
 anthropic>=0.40
 genanki>=0.13
 faster-whisper>=1.0
+requests>=2.31
+apscheduler>=3.10

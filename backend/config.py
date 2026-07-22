@@ -41,3 +41,11 @@ PORT = int(os.environ.get("PORT", os.environ.get("ANKI_APP_PORT", "8000")))
 # unauthenticated instance lets anyone spend your ANTHROPIC_API_KEY credits.
 APP_USERNAME = os.environ.get("APP_USERNAME", "")
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
+# AnkiConnect (https://foosoft.net/projects/anki-connect/) is a local Anki
+# desktop add-on. It's only reachable if this backend runs on the same
+# machine as Anki desktop, with the add-on installed and Anki open.
+ANKICONNECT_URL = os.environ.get("ANKICONNECT_URL", "http://127.0.0.1:8765")
+ANKICONNECT_API_KEY = os.environ.get("ANKICONNECT_API_KEY", "")
+
+DAILY_NOTES_CARD_TIME = os.environ.get("DAILY_NOTES_CARD_TIME", "23:59")

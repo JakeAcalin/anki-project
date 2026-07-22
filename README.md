@@ -31,7 +31,8 @@ organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
 4. **Review & edit** — every field is editable in the browser before export:
    question/answer or cloze text, explanation, tags, deck, and inclusion. A
    live preview shows exactly how the card will render in Anki.
-5. **Export** — download a standard `.apkg` file and import it into Anki.
+5. **Export** — download a standard `.apkg` file, or **Push to Anki** directly
+   (see below).
 
 Everything you've built (sources, media, cards) is saved server-side and
 reloads automatically — nothing lives only in the browser tab. Switch to the
@@ -41,6 +42,33 @@ the left, and on the right, every card under the selected topic rendered as
 an article (question/cloze sentence, answer, and the full explanation),
 searchable by keyword. This is a read/reference view, separate from the
 Create tab's editable card list.
+
+## Pushing directly into Anki (AnkiConnect)
+
+Instead of exporting a file and importing it by hand, **Push to Anki** sends
+cards straight into a running Anki desktop app via
+[AnkiConnect](https://foosoft.net/projects/anki-connect/), a free Anki
+add-on. This only works when:
+
+- This app's backend is running on the **same computer** as Anki desktop
+  (AnkiConnect only listens on `127.0.0.1`, so a remotely-hosted backend
+  can't reach it — this is one more reason self-hosting on your own machine,
+  see below, is the right setup for this feature).
+- Anki desktop is open, with the AnkiConnect add-on installed (`Tools →
+  Add-ons → Get Add-ons…`, code `2055492159`).
+
+Setup is one-time: install the add-on, restart Anki, and the topbar's
+**AnkiConnect** pill turns green whenever Anki is open. Push is idempotent —
+editing a card here and pushing again updates the same Anki note (matched
+internally by a hidden ID field) instead of creating a duplicate. After
+pushing, it also triggers Anki's normal **Sync**, so if you're logged into
+AnkiWeb in the desktop app, the new/updated cards flow to your phone and
+AnkiWeb the same way a manual sync would.
+
+**What this can't do:** there's no public AnkiWeb API, so nothing can push
+cards into your AnkiWeb account directly without Anki desktop being open at
+some point to relay them — "log into AnkiWeb and cards just appear" isn't
+possible with any tool, not just this one.
 
 ## Architecture
 
@@ -55,8 +83,9 @@ backend/
     video.py               ffmpeg audio extraction + keyframe sampling
     claude_client.py       Claude vision captioning + structured card generation
     generator.py            orchestrates source processing -> card generation
-    anki_export.py          genanki .apkg builder (custom note model, CSS)
-  routers/                 sources / media / generate / cards / export / project
+    anki_export.py          genanki .apkg builder (custom note models, CSS)
+    ankiconnect_client.py    pushes/updates cards in a local running Anki desktop
+  routers/                 sources / media / generate / cards / export / project / anki-connect
 frontend/
   index.html, style.css, app.js   no-build vanilla JS single-page UI
 ```

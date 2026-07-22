@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from .auth import BasicAuthMiddleware
-from .routers import cards, export, generate, media, project, sources
+from .routers import ankiconnect, cards, export, generate, media, project, sources
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -19,6 +19,7 @@ app.include_router(generate.router)
 app.include_router(cards.router)
 app.include_router(export.router)
 app.include_router(project.router)
+app.include_router(ankiconnect.router)
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
