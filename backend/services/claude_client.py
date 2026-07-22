@@ -108,15 +108,6 @@ CARD_TOOL = {
                                 "specific concept last."
                             ),
                         },
-                        "media_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": (
-                                "IDs (from the provided media manifest) of images that should "
-                                "be shown on the answer side because they directly help explain "
-                                "this card. Omit if no image is relevant."
-                            ),
-                        },
                     },
                     "required": ["question", "answer", "explanation_points", "tags"],
                 },
@@ -130,20 +121,19 @@ CARD_TOOL = {
 def generate_cards(
     *,
     context_text: str,
-    media_manifest: List[Dict[str, str]],
     subject_hint: Optional[str],
     instructions: Optional[str],
     max_cards: int,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
 
-    manifest_text = "\n".join(
-        f"- id={m['id']}: {m.get('caption', '(no caption)')}" for m in media_manifest
-    ) or "(no images available)"
-
     prompt_parts = [
         "You are building a hierarchically-tagged Anki deck from study material.",
         "Read the SOURCE MATERIAL below and produce high-quality flashcards.",
+        "Some of it may describe figures, graphs, or photos from the original source "
+        "(e.g. 'Fig. 4.19 shows...') — use that description as content, but the cards "
+        "themselves are text-only, so make sure the question/answer/explanation stand "
+        "on their own without requiring the reader to see the original image.",
         "",
         "Rules:",
         f"- Produce at most {max_cards} cards, prioritizing the most important, testable concepts.",
@@ -154,7 +144,6 @@ def generate_cards(
         "nuance in 'explanation_points' instead, never in the question or answer themselves.",
         "- Assign hierarchical tags with '::' (e.g. Topic::Subtopic::Detail). Reuse the same "
         "top-level tag across related cards so the deck organizes into a clean tree.",
-        "- Only attach media_ids when an image genuinely clarifies that specific card's answer.",
     ]
     if subject_hint:
         prompt_parts.append(f"- Root all tags under the subject '{subject_hint}' where sensible.")
@@ -162,9 +151,6 @@ def generate_cards(
         prompt_parts.append(f"- Additional instructions from the user: {instructions}")
 
     prompt_parts += [
-        "",
-        "AVAILABLE MEDIA:",
-        manifest_text,
         "",
         "SOURCE MATERIAL:",
         context_text,

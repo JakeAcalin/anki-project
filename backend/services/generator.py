@@ -114,37 +114,44 @@ def build_cards_from_sources(
         raise ValueError(f"These sources are not processed yet: {', '.join(not_ready)}")
 
     context_chunks = []
-    all_media_ids = []
     for s in sources:
         header = f"== Source: {s.name} ({s.type.value}) =="
-        context_chunks.append(f"{header}\n{s.extracted_text or ''}")
-        all_media_ids.extend(s.media_ids)
+        chunk = f"{header}\n{s.extracted_text or ''}"
 
-    media_manifest = []
-    for mid in all_media_ids:
-        m = store.get_media(mid)
-        if m:
-            media_manifest.append({"id": m.id, "caption": m.caption or ""})
+        # Video keyframes aren't embedded in cards, but their captions are
+        # folded in as text so Claude still knows what was shown on screen.
+        if s.type == SourceType.video and s.media_ids:
+            frame_lines = []
+            for mid in s.media_ids:
+                m = store.get_media(mid)
+                if not m or not m.caption:
+                    continue
+                if m.timestamp_seconds is not None:
+                    minutes, seconds = divmod(int(m.timestamp_seconds), 60)
+                    label = f"{minutes}:{seconds:02d}"
+                else:
+                    label = "?"
+                frame_lines.append(f"- [{label}] {m.caption}")
+            if frame_lines:
+                chunk += "\n\nVisual moments in this video:\n" + "\n".join(frame_lines)
+
+        context_chunks.append(chunk)
 
     raw_cards = claude_client.generate_cards(
         context_text="\n\n".join(context_chunks),
-        media_manifest=media_manifest,
         subject_hint=subject_hint,
         instructions=instructions,
         max_cards=max_cards,
     )
 
-    known_media_ids = {m["id"] for m in media_manifest}
     cards = []
     for raw in raw_cards:
-        media_ids = [m for m in raw.get("media_ids", []) if m in known_media_ids]
         cards.append(
             CardDraft(
                 question=raw.get("question", "").strip(),
                 answer=raw.get("answer", "").strip(),
                 explanation=_render_explanation(raw.get("explanation_points", [])),
                 tags=[t.strip() for t in raw.get("tags", []) if t.strip()],
-                media_ids=media_ids,
                 deck=deck,
                 source_ids=source_ids,
             )

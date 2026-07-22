@@ -1,25 +1,31 @@
 # Anki Card Media Generator
 
 Turn text, images, audio, and video into Anki flashcards. Each card gets a
-short front-side question and a detailed, AI-written back-side explanation
-(text + images), organized with hierarchical tags (`Subject::Topic::Detail`)
-and subdecks (`Subject::Topic`).
+short front-side question and a detailed, AI-written back-side explanation,
+organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
+(`Subject::Topic`).
 
 ## How it works
 
 1. **Add sources** — paste text, or upload images, audio, or video files.
 2. **Process** — each source is turned into plain text:
    - Text stays as-is.
-   - Images are captioned by Claude's vision model.
+   - Images are captioned by Claude's vision model — that caption becomes
+     the source's text content (e.g. a photo of a textbook figure becomes a
+     written description of what it shows).
    - Audio is transcribed locally with [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (no cloud, no API key).
    - Video has its audio track transcribed the same way, plus keyframes are
-     sampled and captioned so relevant frames can be attached to cards.
-3. **Generate** — Claude reads the processed source material and writes a set
-   of atomic flashcards: a question, a short answer, a detailed HTML
-   explanation for the answer side, hierarchical tags, and (when relevant)
-   an image to embed.
+     sampled and captioned so relevant visual moments inform card generation.
+3. **Generate** — Claude reads the processed source material (transcripts,
+   captions) and writes a set of atomic, text-only flashcards: a short
+   question, a short answer, and a detailed explanation (a few digestible
+   bullet points) for the answer side, plus hierarchical tags. Cards never
+   embed the original photo/keyframe — that keeps decks small and fast to
+   sync, and pushes Claude to describe figures/graphs in words instead of
+   relying on a (often low-quality) source image.
 4. **Review & edit** — every field is editable in the browser before export:
-   question, answer, explanation, tags, deck, and inclusion.
+   question, answer, explanation, tags, deck, and inclusion. A live preview
+   shows exactly how the explanation will render on the card.
 5. **Export** — download a standard `.apkg` file and import it into Anki.
 
 ## Architecture
