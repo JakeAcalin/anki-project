@@ -206,11 +206,12 @@ function renderClozePreview(text) {
 
 function renderCards() {
   const list = document.getElementById("cardList");
-  if (state.cards.length === 0) {
-    list.innerHTML = `<div class="empty-state">No cards yet. Generate from your sources, or add one manually.</div>`;
+  const visibleCards = state.cards.filter((c) => !c.archived);
+  if (visibleCards.length === 0) {
+    list.innerHTML = `<div class="empty-state">No cards yet. Generate from your sources, or add one manually. (Cards already pushed to Anki are archived here but still browsable in Library.)</div>`;
     return;
   }
-  list.innerHTML = state.cards
+  list.innerHTML = visibleCards
     .map((c) => {
       const images = c.media_ids
         .map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`)
@@ -724,7 +725,32 @@ function wireEvents() {
       if (result.updated.length) parts.push(`${result.updated.length} updated`);
       if (result.failed.length) parts.push(`${result.failed.length} failed`);
       const syncNote = result.synced ? ", synced to AnkiWeb" : result.sync_error ? " (sync failed)" : "";
-      showToast(`Pushed to Anki: ${parts.join(", ") || "nothing to do"}${syncNote}`, result.failed.length > 0);
+
+      const pushedIds = [...result.added, ...result.updated];
+      if (pushedIds.length > 0) {
+        // Successfully-pushed cards are done here: archive them (hides them
+        // from this Create tab, but they stay fully visible in Library) and
+        // clear out the sources that fed this batch so the workspace is
+        // ready for the next one. Cards that failed to push are left alone
+        // so they're still there to retry.
+        await Promise.all(
+          pushedIds.map((id) =>
+            api(`/api/cards/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ archived: true, included: false }),
+            })
+          )
+        );
+        await Promise.all(
+          state.sources.map((s) => api(`/api/sources/${s.id}`, { method: "DELETE" }))
+        );
+        showToast(`Pushed to Anki: ${parts.join(", ")}${syncNote}. Workspace cleared.`, result.failed.length > 0);
+        state.selectedSourceIds.clear();
+        await loadProject();
+      } else {
+        showToast(`Push to Anki: ${parts.join(", ") || "nothing to do"}${syncNote}`, result.failed.length > 0);
+      }
     } catch (err) {
       showToast(err.message, true);
     } finally {

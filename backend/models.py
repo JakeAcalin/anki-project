@@ -71,6 +71,7 @@ class CardDraft(BaseModel):
     deck: str = "Default"
     source_ids: List[str] = Field(default_factory=list)
     included: bool = True
+    archived: bool = False
     created_at: float = Field(default_factory=time.time)
 
 

@@ -20,9 +20,12 @@ organized with hierarchical tags (`Subject::Topic::Detail`) and subdecks
      sampled and captioned so relevant visual moments (and any highlighted
      text visible in them) inform card generation.
 3. **Generate** — choose **Basic** (question/answer) or **Cloze deletion**
-   (a sentence with a `{{c1::blanked-out}}` phrase) as the card type, then
-   Claude reads the processed source material and writes a set of atomic,
-   text-only flashcards, plus hierarchical tags. If any source has
+   (a sentence with a `{{c1::blanked-out::hint}}` phrase — always includes a
+   hint, so the blank is still answerable without the rest of the source
+   material in front of you) as the card type, then Claude reads the
+   processed source material and writes a set of atomic, text-only
+   flashcards, respecting the max-cards limit exactly (not just as a
+   suggestion), plus hierarchical tags. If any source has
    student-highlighted text, the number of cards is chosen automatically —
    one per highlighted concept — instead of using the manual max-cards
    setting. Cards never embed the original photo/keyframe — that keeps decks
@@ -69,6 +72,14 @@ AnkiWeb the same way a manual sync would.
 cards into your AnkiWeb account directly without Anki desktop being open at
 some point to relay them — "log into AnkiWeb and cards just appear" isn't
 possible with any tool, not just this one.
+
+**After a successful push**, the pushed cards and the sources that fed them
+clear out of the Create tab automatically — the workspace resets so you can
+start the next batch without old material cluttering the view. Nothing is
+actually deleted from the cards themselves: they're archived (not shown in
+Create, excluded from future exports/pushes) but remain fully visible and
+searchable in the **Library** tab. Cards that fail to push are left alone
+in Create so you can fix and retry them.
 
 ## Daily Notes
 

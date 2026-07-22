@@ -19,6 +19,7 @@ class CardUpdate(BaseModel):
     media_ids: Optional[List[str]] = None
     deck: Optional[str] = None
     included: Optional[bool] = None
+    archived: Optional[bool] = None
 
 
 @router.get("")

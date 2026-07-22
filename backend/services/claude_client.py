@@ -122,12 +122,16 @@ _CLOZE_CARD_PROPERTIES = {
     "cloze_text": {
         "type": "string",
         "description": (
-            "One short, self-contained sentence with the key term(s) to test wrapped "
-            "in Anki cloze syntax: {{c1::hidden text}}. Example: "
-            "'The powerhouse of the cell is {{c1::the mitochondria}}.' Use a single "
-            "{{c1::...}} per card unless two blanks are only meaningful when tested "
-            "together, in which case use {{c1::...}} and {{c2::...}} in the same "
-            "sentence. Keep the sentence itself short and unambiguous."
+            "One short, self-contained sentence with the key term(s) to test wrapped in "
+            "Anki cloze syntax, ALWAYS including a hint: {{c1::hidden text::hint}}. The "
+            "hint should orient the reader (a category, type, or short label) without "
+            "giving away the answer itself -- never omit it, since a bare blank with no "
+            "hint often leaves the card unanswerable out of context. Example: 'Atropine "
+            "is a {{c1::tertiary amine::amine type}}, while glycopyrrolate is a "
+            "{{c2::quaternary amine::amine type}}.' Use a single {{c1::...}} per card "
+            "unless two blanks are only meaningful when tested together, in which case "
+            "use {{c1::...}} and {{c2::...}} in the same sentence, each with its own "
+            "hint. Keep the sentence itself short and unambiguous."
         ),
     },
 }

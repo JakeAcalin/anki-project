@@ -8,6 +8,13 @@ from . import config
 from .models import CardDraft, DailyNotes, MediaItem, Project, Source
 
 
+def _unlink_quiet(path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 class Store:
     """Simple JSON-file-backed project store. Single-user, single-process app,
     so a process-wide lock around read-modify-write is sufficient."""
@@ -54,8 +61,21 @@ class Store:
 
     def delete_source(self, source_id: str) -> None:
         with self._lock:
+            source = next((s for s in self._project.sources if s.id == source_id), None)
+            if source is None:
+                return
+            orphaned_media = [m for m in self._project.media if m.source_id == source_id]
+
             self._project.sources = [s for s in self._project.sources if s.id != source_id]
+            self._project.media = [m for m in self._project.media if m.source_id != source_id]
             self._save()
+
+        # Best-effort disk cleanup outside the lock -- a leftover file here
+        # is harmless clutter, not a correctness issue worth blocking on.
+        if source.stored_filename:
+            _unlink_quiet(config.UPLOAD_DIR / source.stored_filename)
+        for media in orphaned_media:
+            _unlink_quiet(config.MEDIA_DIR / media.filename)
 
     # -- media --
     def add_media(self, media: MediaItem) -> MediaItem:
