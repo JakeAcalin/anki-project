@@ -182,8 +182,10 @@ function renderCards() {
             <textarea data-field="question">${escapeHtml(c.question)}</textarea>
             <div class="card-field-label">Answer</div>
             <textarea data-field="answer">${escapeHtml(c.answer)}</textarea>
-            <div class="card-field-label">Explanation (answer-side detail, HTML ok)</div>
+            <div class="card-field-label">Explanation (answer-side detail — edit as HTML source)</div>
             <textarea class="explanation" data-field="explanation">${escapeHtml(c.explanation)}</textarea>
+            <div class="card-field-label">Preview (what Anki will actually show)</div>
+            <div class="explanation-preview" data-preview="explanation">${c.explanation}</div>
             ${images ? `<div class="card-images">${images}</div>` : ""}
             <div class="card-tags-row">
               <span class="card-field-label">Tags</span>
@@ -379,6 +381,13 @@ function wireEvents() {
     const value = field === "included" ? e.target.checked : e.target.value;
     await updateCard(id, field, value);
     if (field === "tags") renderTagCloud();
+  });
+
+  document.getElementById("cardList").addEventListener("input", (e) => {
+    if (e.target.dataset.field !== "explanation") return;
+    const item = e.target.closest(".card-item");
+    const preview = item.querySelector('[data-preview="explanation"]');
+    if (preview) preview.innerHTML = e.target.value;
   });
 
   document.getElementById("cardList").addEventListener("click", async (e) => {

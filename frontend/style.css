@@ -133,7 +133,19 @@ textarea { resize: vertical; }
 .card-item-top input[type=checkbox] { margin-top: 4px; }
 .card-fields { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .card-fields textarea { min-height: 34px; }
-.card-fields textarea.explanation { min-height: 70px; }
+.card-fields textarea.explanation { min-height: 70px; font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+.explanation-preview {
+  font-size: 15px;
+  line-height: 1.55;
+  color: #2a2a2a;
+  background: #ffffff;
+  border-left: 4px solid var(--blue);
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+.explanation-preview p { margin: 0 0 8px 0; }
+.explanation-preview ul { margin: 4px 0 4px 20px; padding: 0; }
+.explanation-preview:empty::before { content: "(empty)"; color: var(--muted); font-style: italic; }
 .card-field-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
 .card-tags-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .card-images { display: flex; gap: 8px; flex-wrap: wrap; }
