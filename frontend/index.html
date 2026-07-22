@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anki Card Media Generator</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">🗂️ Anki Card Media Generator</div>
+  <div class="deck-name-field">
+    <label>Deck</label>
+    <input id="deckNameInput" type="text" placeholder="e.g. Biology::Cell Biology" />
+  </div>
+  <div id="apiStatus" class="api-status"></div>
+  <button id="exportBtn" class="primary-btn">Export .apkg</button>
+</header>
+
+<div id="banner" class="banner hidden"></div>
+
+<main class="layout">
+  <section class="col sources-col">
+    <h2>1. Add Sources</h2>
+    <div class="card-box">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="upload">Upload File</button>
+        <button class="tab-btn" data-tab="text">Paste Text</button>
+      </div>
+
+      <div class="tab-panel" data-panel="upload">
+        <div id="dropzone" class="dropzone">
+          Drag &amp; drop image / audio / video files here, or click to choose
+          <input id="fileInput" type="file" multiple hidden
+                 accept="image/*,audio/*,video/*" />
+        </div>
+      </div>
+
+      <div class="tab-panel hidden" data-panel="text">
+        <input id="textSourceName" type="text" placeholder="Source name (e.g. Chapter 3 notes)" />
+        <textarea id="textSourceBody" rows="6" placeholder="Paste or type text here..."></textarea>
+        <button id="addTextSourceBtn" class="secondary-btn">Add Text Source</button>
+      </div>
+    </div>
+
+    <div class="source-list-header">
+      <h3>Sources</h3>
+      <button id="processAllBtn" class="link-btn">Process all pending</button>
+    </div>
+    <ul id="sourceList" class="source-list"></ul>
+  </section>
+
+  <section class="col generate-col">
+    <h2>2. Generate Cards</h2>
+    <div class="card-box">
+      <label class="field-label">Subject (optional root tag)</label>
+      <input id="subjectHint" type="text" placeholder="e.g. Biology" />
+
+      <label class="field-label">Extra instructions (optional)</label>
+      <textarea id="instructions" rows="3" placeholder="e.g. Focus on mechanisms, not dates. Write explanations for a college beginner."></textarea>
+
+      <label class="field-label">Max cards</label>
+      <input id="maxCards" type="number" value="20" min="1" max="100" />
+
+      <div class="field-label">Sources to use (must be processed)</div>
+      <div id="sourceCheckboxes" class="source-checkboxes"></div>
+
+      <button id="generateBtn" class="primary-btn full-width">✨ Generate Cards</button>
+    </div>
+
+    <div class="cards-header">
+      <h2>3. Review &amp; Edit Cards</h2>
+      <button id="addCardBtn" class="link-btn">+ Add card manually</button>
+    </div>
+    <div id="tagCloud" class="tag-cloud"></div>
+    <div id="cardList" class="card-list"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
