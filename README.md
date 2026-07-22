@@ -133,27 +133,62 @@ weights (default size: `small`, a few hundred MB). Tune size/speed via
   the short answer, then a highlighted "detailed explanation" block, then
   any attached images.
 
-## Deploying it (so you can use it from your phone or any browser)
+## Using it from your phone
 
-The app is a normal Docker container, so it runs on any host that builds
-from a `Dockerfile` — Railway, Render, Fly.io, a VPS, etc. Steps below use
-**Railway** since it needs no CLI, just a browser.
+### Self-host + Tailscale (recommended: free, and required for AnkiConnect)
 
-### 1. Protect it before making it public
+Run the app on a computer you already own — this costs nothing, and it's
+the *only* setup where **Push to Anki** (AnkiConnect) works at all, since
+AnkiConnect only listens on `127.0.0.1` on whatever machine Anki desktop is
+running on. [Tailscale](https://tailscale.com) (free for personal use) gives
+your phone a secure, private route to that computer without exposing
+anything to the public internet or fiddling with router port-forwarding.
 
-Anyone who can reach the URL can spend your `ANTHROPIC_API_KEY` credits and
-see your uploaded media, since there's no login by default. Set these two
-env vars on the host (not in git) to require a login:
+1. **Install Tailscale** on the computer that will run this app, and on your
+   phone (from [tailscale.com/download](https://tailscale.com/download)).
+   Sign into the same account on both — they now share a private network.
+2. **Set two things in `.env`** on the host computer:
+   ```
+   ANKI_APP_HOST=0.0.0.0
+   APP_USERNAME=pick-a-username
+   APP_PASSWORD=pick-a-strong-password
+   ```
+   `ANKI_APP_HOST=0.0.0.0` makes the server reachable from other devices
+   (not just `localhost`); the username/password matter because `0.0.0.0`
+   also means anything on your home Wi-Fi could technically reach it — auth
+   keeps it locked to you. (Tailscale itself also only lets *your own*
+   authorized devices onto the tailnet in the first place, so this is a
+   second layer, not your only protection.)
+3. **Run it**: `./run.sh`. Leave this running — the computer needs to stay
+   on and awake for your phone to reach it (disable sleep, or just use a
+   machine that's normally on anyway).
+4. **Find the host's Tailscale address**: run `tailscale ip -4` on the host
+   computer.
+5. **From your phone**, open `http://<that-ip>:8000` in a browser (or Chrome
+   → ⋮ → **Add to Home screen** to make it feel like an installed app). Log
+   in with the username/password from step 2.
 
-```
-APP_USERNAME=pick-a-username
-APP_PASSWORD=pick-a-strong-password
-```
+Since Anki desktop needs to be open on that same computer for **Push to
+Anki** to work, this setup naturally puts everything in one place: the app,
+Anki desktop, and (via Tailscale) your phone's access to both.
 
-Leaving either unset disables auth entirely — that's fine for local-only
-use, but always set both for anything public.
+To keep it running after you close the terminal or reboot, wrap `./run.sh`
+in whatever your OS uses for background services — `nohup ./run.sh &` or a
+`tmux`/`screen` session is the quick version; a proper `systemd --user`
+unit (Linux) or `launchd` agent (macOS) is the durable version if you want
+it to survive reboots unattended.
 
-### 2. Deploy on Railway
+### Cloud hosting (Railway, Render, Fly.io, a VPS)
+
+Still an option if you'd rather not keep a computer on, or want a URL
+reachable without Tailscale — the app is a normal Docker container, so it
+runs on any host that builds from the included `Dockerfile`. **Trade-off:
+AnkiConnect can't work this way** (it can't reach `127.0.0.1` on your
+computer from someone else's server), so a cloud deployment is
+export-only (`.apkg` download/import). Steps below use **Railway** as an
+example since it needs no CLI, just a browser — Render and Fly.io work the
+same way (point them at the `Dockerfile`, set the same env vars, attach a
+persistent volume at `/app/data`).
 
 1. Push this repo to GitHub (already done if you're reading this from the repo).
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo** → pick this repo. Railway detects the `Dockerfile` automatically.
@@ -163,17 +198,8 @@ use, but always set both for anything public.
    - `WHISPER_MODEL_SIZE=tiny` (recommended on small/hobby plans — `small`/`medium` need more RAM than free tiers usually give)
 4. Open the **Volumes** tab and attach a volume mounted at `/app/data`. Without this, uploads, generated cards, and the downloaded Whisper model all disappear on every redeploy/restart.
 5. Under **Settings → Networking**, click **Generate Domain** to get a public `https://...up.railway.app` URL.
-6. Open that URL from your phone's browser, log in with the username/password from step 1, and use it like the local version.
+6. Open that URL from your phone's browser, log in with the username/password from step 3, and use it like the local version.
 
-Render and Fly.io work the same way (point them at the `Dockerfile`, set the
-same env vars, attach a persistent disk/volume at `/app/data`) if you prefer
-either of those instead.
-
-### Cost/behavior notes for a hosted deployment
-
-- Whisper transcription now runs on the host's CPU instead of yours — slower
-  and, on paid plans, part of what you're billed for. `tiny`/`base` models
-  are noticeably faster on constrained hardware than `small` and up.
-  large videos will take longer to transcribe than on a beefy laptop.
-- The Anthropic API calls (captioning, card generation) work identically
-  wherever the app runs — you're billed by API usage either way, not by host.
+Note this is a paid tier on Railway once you're past any trial credit —
+Whisper transcription alone needs more RAM/CPU than free tiers typically
+allow. If cost is the concern, self-hosting above is the better default.
