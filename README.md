@@ -102,6 +102,18 @@ for as long as the backend keeps running, so as soon as you reopen Anki the
 cards sync automatically with no action needed. The Daily Notes tab shows
 whether the last push succeeded or is still waiting on Anki.
 
+## Importing TrueLearn notes
+
+The "Upload File" tab also accepts a TrueLearn **"My Notes"** export
+(`.xlsx` — export it from TrueLearn's notes page). Each row (Topic,
+Question ID, Note) becomes one card, tagged using its topic, going through
+the normal review step like any other source before you push or export.
+
+Re-uploading a newer export is safe to do as often as you like: TrueLearn's
+export is a full snapshot each time, not just what's new, so the app tracks
+which Question IDs have already been turned into cards and only cards the
+genuinely new rows on each import.
+
 ## Architecture
 
 ```

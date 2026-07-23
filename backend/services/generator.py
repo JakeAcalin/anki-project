@@ -10,7 +10,7 @@ from typing import List, Optional
 from .. import config
 from ..models import CardDraft, CardType, MediaItem, MediaKind, Source, SourceStatus, SourceType
 from ..storage import store
-from . import claude_client, transcription, video
+from . import claude_client, transcription, truelearn_import, video
 
 
 def process_source(source: Source) -> Source:
@@ -70,6 +70,24 @@ def process_source(source: Source) -> Source:
             source.media_ids = media_ids
             source.highlighted_excerpts = all_highlights
             source.extracted_text = transcript
+
+        elif source.type == SourceType.truelearn_notes:
+            path = config.UPLOAD_DIR / source.stored_filename
+            all_notes = truelearn_import.parse_notes(path)
+            seen = store.get_truelearn_seen_ids()
+            new_notes = [n for n in all_notes if n["question_id"] not in seen]
+
+            source.truelearn_row_ids = [n["question_id"] for n in new_notes]
+            if not new_notes:
+                source.extracted_text = (
+                    f"(No new notes to import -- all {len(all_notes)} note(s) in this "
+                    "file were already turned into cards from a previous import.)"
+                )
+            else:
+                blocks = [
+                    f"[Topic: {n['topic']}] (id {n['question_id']})\n{n['note']}" for n in new_notes
+                ]
+                source.extracted_text = "\n\n".join(blocks)
 
         source.status = SourceStatus.done
 
@@ -193,7 +211,8 @@ def build_cards_from_sources(
 
         context_chunks.append(chunk)
 
-    auto_count = any(s.highlighted_excerpts for s in sources)
+    has_truelearn_notes = any(s.type == SourceType.truelearn_notes for s in sources)
+    auto_count = any(s.highlighted_excerpts for s in sources) or has_truelearn_notes
 
     raw_cards = claude_client.generate_cards(
         context_text="\n\n".join(context_chunks),
@@ -202,6 +221,7 @@ def build_cards_from_sources(
         instructions=instructions,
         max_cards=max_cards,
         auto_count=auto_count,
+        has_truelearn_notes=has_truelearn_notes,
     )
 
     cards = []
@@ -231,6 +251,15 @@ def build_cards_from_sources(
             )
 
     store.add_cards(cards)
+
+    # Only mark these Question IDs as "already carded" now that cards were
+    # actually generated from them -- if generation had failed above, the
+    # rows would still be reported as new next time, matching the same
+    # commit-only-on-success pattern used for Daily Notes' checkpoint.
+    truelearn_ids = [rid for s in sources if s.type == SourceType.truelearn_notes for rid in s.truelearn_row_ids]
+    if truelearn_ids:
+        store.add_truelearn_seen_ids(truelearn_ids)
+
     return cards
 
 

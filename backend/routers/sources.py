@@ -13,6 +13,8 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 
 
 def _guess_source_type(filename: str, content_type: str) -> SourceType:
+    if filename.lower().endswith(".xlsx"):
+        return SourceType.truelearn_notes
     content_type = content_type or mimetypes.guess_type(filename)[0] or ""
     if content_type.startswith("image/"):
         return SourceType.image

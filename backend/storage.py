@@ -193,5 +193,17 @@ class Store:
             self._save()
             return notes
 
+    # -- truelearn notes import --
+    def get_truelearn_seen_ids(self) -> set:
+        with self._lock:
+            return set(self._project.truelearn_seen_ids)
+
+    def add_truelearn_seen_ids(self, ids) -> None:
+        with self._lock:
+            seen = set(self._project.truelearn_seen_ids)
+            seen.update(ids)
+            self._project.truelearn_seen_ids = sorted(seen)
+            self._save()
+
 
 store = Store()

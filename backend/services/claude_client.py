@@ -202,6 +202,7 @@ def generate_cards(
     instructions: Optional[str],
     max_cards: int,
     auto_count: bool,
+    has_truelearn_notes: bool = False,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
 
@@ -225,6 +226,16 @@ def generate_cards(
             "sense on its own. The number of cards should come from the number of distinct "
             "highlighted concepts, not a fixed target."
         )
+        if has_truelearn_notes:
+            prompt_parts.append(
+                "- Source material blocks that start with '[Topic: ...]' are notes the "
+                "student already wrote themselves after missing a question on TrueLearn — "
+                "each such block is one distinct concept. Produce exactly one focused card "
+                "per '[Topic: ...]' block, in addition to any highlighted-concept cards "
+                "above. Use the topic to inform the card's hierarchical tag, but clean it "
+                "up rather than copying it verbatim (drop trailing letters/version markers "
+                "like '(A)' and redundant repetition)."
+            )
     else:
         prompt_parts.append(
             f"- Produce at most {max_cards} cards, prioritizing the most important, testable "

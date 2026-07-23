@@ -15,6 +15,7 @@ class SourceType(str, Enum):
     image = "image"
     audio = "audio"
     video = "video"
+    truelearn_notes = "truelearn_notes"
 
 
 class SourceStatus(str, Enum):
@@ -56,6 +57,11 @@ class Source(BaseModel):
     stored_filename: Optional[str] = None
     media_ids: List[str] = Field(default_factory=list)
     highlighted_excerpts: List[str] = Field(default_factory=list)
+    # TrueLearn "My Notes" (.xlsx) imports: the Question IDs represented in
+    # extracted_text, snapshotted at parse time so a later successful
+    # generation knows exactly which ones to mark as seen (see
+    # generator.push_pending... commit-on-success pattern).
+    truelearn_row_ids: List[str] = Field(default_factory=list)
     created_at: float = Field(default_factory=time.time)
 
 
@@ -94,6 +100,10 @@ class Project(BaseModel):
     deck_name: str = "My Deck"
     daily_notes: DailyNotes = Field(default_factory=DailyNotes)
     migrated_tag_root: bool = False
+    # Question IDs from TrueLearn "My Notes" exports that have already been
+    # turned into cards, so re-uploading a newer export (which is a full
+    # snapshot, not just what's new) only cards the genuinely new rows.
+    truelearn_seen_ids: List[str] = Field(default_factory=list)
 
 
 class GenerateRequest(BaseModel):
