@@ -101,6 +101,7 @@ class Project(BaseModel):
     daily_notes: DailyNotes = Field(default_factory=DailyNotes)
     migrated_tag_root: bool = False
     migrated_tag_root_removed: bool = False
+    migrated_tag_root_readded: bool = False
     # Question IDs from TrueLearn "My Notes" exports that have already been
     # turned into cards, so re-uploading a newer export (which is a full
     # snapshot, not just what's new) only cards the genuinely new rows.

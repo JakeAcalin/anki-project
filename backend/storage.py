@@ -165,6 +165,15 @@ class Store:
             self._project.migrated_tag_root_removed = True
             self._save()
 
+    def is_tag_root_readded_migrated(self) -> bool:
+        with self._lock:
+            return self._project.migrated_tag_root_readded
+
+    def mark_tag_root_readded_migrated(self) -> None:
+        with self._lock:
+            self._project.migrated_tag_root_readded = True
+            self._save()
+
     def reset(self) -> None:
         with self._lock:
             self._project = Project()
