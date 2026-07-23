@@ -667,6 +667,43 @@ function wireEvents() {
     }
   });
 
+  document.getElementById("changeDeckBtn").addEventListener("click", async () => {
+    const visible = state.cards.filter((c) => !c.archived);
+    if (visible.length === 0) return;
+    const input = prompt(
+      `New deck for all ${visible.length} card${visible.length === 1 ? "" : "s"} in this batch:`,
+      state.deckName
+    );
+    if (input === null) return;
+    const newDeck = input.trim();
+    if (!newDeck) return showToast("Deck name can't be empty.", true);
+
+    await Promise.all(
+      visible.map((c) => {
+        // Re-root this card's own tags under the new deck -- each card may
+        // already have a different deck value if it was hand-edited, so use
+        // its own current deck as the prefix to replace, not a shared one.
+        const oldPrefix = `${c.deck}::`;
+        const newTags = c.tags.map((t) => {
+          if (t === c.deck) return newDeck;
+          if (t.startsWith(oldPrefix)) return `${newDeck}::${t.slice(oldPrefix.length)}`;
+          return t;
+        });
+        return api(`/api/cards/${c.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ deck: newDeck, tags: newTags }),
+        }).then((updated) => {
+          const idx = state.cards.findIndex((x) => x.id === c.id);
+          if (idx !== -1) state.cards[idx] = updated;
+        });
+      })
+    );
+    renderCards();
+    renderTagCloud();
+    showToast(`Moved ${visible.length} card${visible.length === 1 ? "" : "s"} to "${newDeck}".`);
+  });
+
   document.getElementById("deleteAllCardsBtn").addEventListener("click", async () => {
     const visible = state.cards.filter((c) => !c.archived);
     if (visible.length === 0) return;
