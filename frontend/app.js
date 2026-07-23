@@ -585,14 +585,17 @@ function wireEvents() {
     try {
       const result = await api("/api/anki-connect/sync-check", { method: "POST" });
       await loadProject();
+      const parts = [`Checked ${result.checked} pushed cards`];
       if (result.reset_card_ids.length > 0) {
-        showToast(
-          `Checked ${result.checked} pushed cards: ${result.still_in_anki} still in Anki, ` +
-            `${result.reset_card_ids.length} were deleted there and moved back to the Create tab.`
-        );
-      } else {
-        showToast(`Checked ${result.checked} pushed cards -- all still in Anki.`);
+        parts.push(`${result.reset_card_ids.length} were deleted in Anki and moved back to the Create tab`);
       }
+      if (result.pulled_card_ids.length > 0) {
+        parts.push(`${result.pulled_card_ids.length} had edits in Anki pulled back into the Library`);
+      }
+      if (result.reset_card_ids.length === 0 && result.pulled_card_ids.length === 0) {
+        parts.push("everything matches");
+      }
+      showToast(parts.join(", ") + ".");
     } catch (err) {
       showToast(err.message, true);
     } finally {

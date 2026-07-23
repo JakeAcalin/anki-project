@@ -209,48 +209,87 @@ def trigger_sync() -> None:
     _invoke("sync")
 
 
-def find_deleted_note_ids(note_ids: List[int]) -> List[int]:
-    """Given note IDs this app previously pushed, return the ones that no
-    longer exist in Anki (e.g. deleted there directly, outside this app --
-    AnkiConnect's notesInfo returns an empty dict for any ID that's gone)."""
-    if not note_ids:
-        return []
-    infos = _invoke("notesInfo", notes=note_ids) or []
-    deleted = []
-    for note_id, info in zip(note_ids, infos):
-        if not info:
-            deleted.append(note_id)
-    return deleted
+def _pull_card_from_note_info(card: Any, info: Dict[str, Any]) -> bool:
+    """Refresh a card's own content/tags from an Anki notesInfo entry for
+    the note it's already linked to. Returns True if anything changed."""
+    from ..models import CardType
+
+    fields = {name: data["value"] for name, data in (info.get("fields") or {}).items()}
+    tags = [t.replace("_", " ") for t in (info.get("tags") or [])]
+
+    changed = False
+    if card.card_type == CardType.cloze:
+        if "Text" in fields and fields["Text"] != card.cloze_text:
+            card.cloze_text = fields["Text"]
+            changed = True
+    else:
+        if "Question" in fields and fields["Question"] != card.question:
+            card.question = fields["Question"]
+            changed = True
+        if "Answer" in fields and fields["Answer"] != card.answer:
+            card.answer = fields["Answer"]
+            changed = True
+    if "Explanation" in fields and fields["Explanation"] != card.explanation:
+        card.explanation = fields["Explanation"]
+        changed = True
+    if tags and set(tags) != set(card.tags):
+        card.tags = tags
+        changed = True
+
+    try:
+        card_ids = _invoke("findCards", query=f"nid:{card.anki_note_id}") or []
+        if card_ids:
+            cards_info = _invoke("cardsInfo", cards=card_ids) or []
+            deck_name = cards_info[0].get("deckName") if cards_info else None
+            if deck_name and deck_name != card.deck:
+                card.deck = deck_name
+                changed = True
+    except AnkiConnectError:
+        pass  # deck lookup is a bonus; field/tag refresh above still counts
+
+    return changed
 
 
 def sync_check() -> Dict[str, Any]:
     """Reconcile every archived ("already pushed") card against Anki's
-    actual state: any card whose note has been deleted in Anki (outside
-    this app) is un-archived so it flows back into the normal review/push
-    list -- the user asked to have the option to remake or permanently
-    delete it, rather than have it silently stay "already pushed" when it
-    isn't.
+    actual state, in both directions:
 
-    Cards archived without a stored Anki note ID (pushed before this app
-    tracked one, or archived some other way) have nothing to check against
-    -- treat "can't confirm it's in Anki" the same as "it's not," for the
-    same reason."""
+    - A card whose note has been deleted in Anki (outside this app) is
+      un-archived so it flows back into the normal review/push list --
+      the user asked to have the option to remake or permanently delete
+      it, rather than have it silently stay "already pushed" when it
+      isn't. Cards archived without a stored Anki note ID (pushed before
+      this app tracked one, or archived some other way) have nothing to
+      check against -- treat "can't confirm it's in Anki" the same as
+      "it's not," for the same reason.
+
+    - A card whose note still exists gets its own content/tags/deck
+      refreshed from whatever's actually in Anki right now, so an edit
+      made directly in Anki desktop (e.g. shortening an overly-long cloze
+      deletion) doesn't silently get lost -- or later clobbered back to
+      this app's stale copy the next time that card gets re-pushed."""
     from ..storage import store
 
     archived_cards = [c for c in store.list_cards() if c.archived]
     trackable = [c for c in archived_cards if c.anki_note_id is not None]
     untrackable = [c for c in archived_cards if c.anki_note_id is None]
 
-    deleted_ids = set(find_deleted_note_ids([c.anki_note_id for c in trackable]))
+    infos = _invoke("notesInfo", notes=[c.anki_note_id for c in trackable]) or [] if trackable else []
+    info_by_note_id = {c.anki_note_id: info for c, info in zip(trackable, infos)}
 
     reset_card_ids = []
+    pulled_card_ids = []
     for card in trackable:
-        if card.anki_note_id in deleted_ids:
+        info = info_by_note_id.get(card.anki_note_id)
+        if not info:
             card.archived = False
             card.included = True
             card.anki_note_id = None
             store.update_card(card)
             reset_card_ids.append(card.id)
+        elif _pull_card_from_note_info(card, info):
+            store.update_card(card)
+            pulled_card_ids.append(card.id)
 
     for card in untrackable:
         card.archived = False
@@ -262,4 +301,5 @@ def sync_check() -> Dict[str, Any]:
         "checked": len(archived_cards),
         "still_in_anki": len(archived_cards) - len(reset_card_ids),
         "reset_card_ids": reset_card_ids,
+        "pulled_card_ids": pulled_card_ids,
     }
