@@ -262,6 +262,8 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 
 .link-btn { background: none; border: none; color: var(--accent-soft-text); font-size: 13px; font-weight: 650; padding: 2px 0; }
 .link-btn:hover { color: var(--accent-hover); }
+.link-btn.danger { color: var(--danger); }
+.link-btn.danger:hover { color: var(--danger); filter: brightness(1.15); }
 .icon-btn { background: none; border: none; color: var(--text-faint); font-size: 12px; font-weight: 600; padding: 2px 4px; border-radius: 6px; transition: color .15s ease, background .15s ease; }
 .icon-btn:hover { color: var(--danger); background: var(--danger-soft); }
 
@@ -449,6 +451,7 @@ textarea { resize: vertical; }
 
 #reviewSection.hidden { display: none; }
 .cards-header { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 0 2px; }
+.cards-header-actions { display: flex; align-items: center; gap: 16px; }
 .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .tag-chip {
   font-size: 11px; background: var(--accent-soft); color: var(--accent-soft-text); border-radius: 999px;

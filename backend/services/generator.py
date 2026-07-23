@@ -211,8 +211,20 @@ def build_cards_from_sources(
 
         context_chunks.append(chunk)
 
-    has_truelearn_notes = any(s.type == SourceType.truelearn_notes for s in sources)
+    # Only count a TrueLearn source once it actually has new (undeduped) rows
+    # -- a fully-deduped source (0 new rows) shouldn't force auto_count on
+    # for the whole batch if it's mixed with an unrelated source that does
+    # want normal max_cards-based generation.
+    truelearn_row_count = sum(len(s.truelearn_row_ids) for s in sources if s.type == SourceType.truelearn_notes)
+    has_truelearn_notes = truelearn_row_count > 0
     auto_count = any(s.highlighted_excerpts for s in sources) or has_truelearn_notes
+    auto_count_cap = None
+    if auto_count:
+        # A hard upper bound on card count: one per highlighted excerpt plus
+        # one per new TrueLearn row. Without this, "auto_count" gave Claude
+        # no ceiling at all and it would sometimes split a single row's note
+        # into several atomic cards, badly over-producing.
+        auto_count_cap = sum(len(s.highlighted_excerpts) for s in sources) + truelearn_row_count
 
     raw_cards = claude_client.generate_cards(
         context_text="\n\n".join(context_chunks),
@@ -221,6 +233,7 @@ def build_cards_from_sources(
         instructions=instructions,
         max_cards=max_cards,
         auto_count=auto_count,
+        auto_count_cap=auto_count_cap,
         has_truelearn_notes=has_truelearn_notes,
     )
 

@@ -202,6 +202,7 @@ def generate_cards(
     instructions: Optional[str],
     max_cards: int,
     auto_count: bool,
+    auto_count_cap: Optional[int] = None,
     has_truelearn_notes: bool = False,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
@@ -275,7 +276,13 @@ def generate_cards(
         context_text,
     ]
 
-    tool = _build_card_tool(card_type, max_items=None if auto_count else max_cards)
+    # "auto_count" tells Claude to size the output itself (one card per
+    # highlighted concept / TrueLearn row) instead of a fixed target -- but
+    # the caller usually still knows a real upper bound (the number of
+    # concepts/rows involved), so enforce it as a hard cap the same way
+    # max_cards is enforced below: the prompt is a request, not a guarantee.
+    max_items = auto_count_cap if auto_count else max_cards
+    tool = _build_card_tool(card_type, max_items=max_items)
     message = client.messages.create(
         model=config.CLAUDE_TEXT_MODEL,
         max_tokens=8000,
@@ -287,9 +294,10 @@ def generate_cards(
     for block in message.content:
         if block.type == "tool_use" and block.name == "emit_cards":
             cards = block.input.get("cards", [])
-            # The prompt above only *asks* Claude to stay under max_cards --
-            # models don't always comply exactly, so enforce it here too.
-            if not auto_count:
-                cards = cards[:max_cards]
+            # The prompt (and the schema's maxItems above) only *ask* Claude
+            # to stay within bounds -- models don't always comply exactly,
+            # so enforce it here too.
+            if max_items is not None:
+                cards = cards[:max_items]
             return cards
     return []

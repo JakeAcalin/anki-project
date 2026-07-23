@@ -667,6 +667,19 @@ function wireEvents() {
     }
   });
 
+  document.getElementById("deleteAllCardsBtn").addEventListener("click", async () => {
+    const visible = state.cards.filter((c) => !c.archived);
+    if (visible.length === 0) return;
+    if (!confirm(`Delete all ${visible.length} card${visible.length === 1 ? "" : "s"} in this batch? This can't be undone.`)) {
+      return;
+    }
+    await Promise.all(visible.map((c) => api(`/api/cards/${c.id}`, { method: "DELETE" })));
+    state.cards = state.cards.filter((c) => c.archived);
+    renderCards();
+    renderTagCloud();
+    showToast(`Deleted ${visible.length} card${visible.length === 1 ? "" : "s"}.`);
+  });
+
   document.getElementById("addCardBtn").addEventListener("click", async () => {
     const isCloze = state.cardType === "cloze";
     const card = await api("/api/cards", {
