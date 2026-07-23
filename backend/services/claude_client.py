@@ -129,15 +129,20 @@ _CLOZE_CARD_PROPERTIES = {
         "type": "string",
         "description": (
             "One short, self-contained sentence with the key term(s) to test wrapped in "
-            "Anki cloze syntax, ALWAYS including a hint: {{c1::hidden text::hint}}. The "
-            "hint should orient the reader (a category, type, or short label) without "
-            "giving away the answer itself -- never omit it, since a bare blank with no "
-            "hint often leaves the card unanswerable out of context. Example: 'Atropine "
-            "is a {{c1::tertiary amine::amine type}}, while glycopyrrolate is a "
-            "{{c2::quaternary amine::amine type}}.' Use a single {{c1::...}} per card "
-            "unless two blanks are only meaningful when tested together, in which case "
-            "use {{c1::...}} and {{c2::...}} in the same sentence, each with its own "
-            "hint. Keep the sentence itself short and unambiguous."
+            "Anki cloze syntax, ALWAYS including a hint: {{c1::hidden text::hint}}. Keep "
+            "each individual deletion SHORT -- one or two words (a term, a number, a "
+            "name), never a long phrase or clause. If the key fact is naturally a longer "
+            "phrase, pick the single most essential word inside it to blank out instead "
+            "of hiding the whole thing. The hint should orient the reader (a category, "
+            "type, or short label) without giving away the answer itself -- never omit "
+            "it, since a bare blank with no hint often leaves the card unanswerable out "
+            "of context. Example: 'Atropine is a {{c1::tertiary amine::amine type}}, "
+            "while glycopyrrolate is a {{c2::quaternary amine::amine type}}.' If the "
+            "sentence describes a list of parallel items (several strategies, causes, "
+            "exceptions, etc.), give each item its own numbered blank ({{c1::...}}, "
+            "{{c2::...}}, {{c3::...}}, ...) so every item in the list gets tested, "
+            "rather than leaving some untested or cramming them into one long deletion. "
+            "Keep the sentence itself short and unambiguous."
         ),
     },
 }
