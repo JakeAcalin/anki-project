@@ -578,6 +578,29 @@ function wireEvents() {
     renderLibrary();
   });
 
+  document.getElementById("syncCheckBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("syncCheckBtn");
+    btn.disabled = true;
+    btn.textContent = "Checking…";
+    try {
+      const result = await api("/api/anki-connect/sync-check", { method: "POST" });
+      await loadProject();
+      if (result.reset_card_ids.length > 0) {
+        showToast(
+          `Checked ${result.checked} pushed cards: ${result.still_in_anki} still in Anki, ` +
+            `${result.reset_card_ids.length} were deleted there and moved back to the Create tab.`
+        );
+      } else {
+        showToast(`Checked ${result.checked} pushed cards -- all still in Anki.`);
+      }
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🔄 Sync with Anki";
+    }
+  });
+
   document.getElementById("libraryChangeDeckBtn").addEventListener("click", async () => {
     const visible = getVisibleLibraryCards();
     if (visible.length === 0) return showToast("No cards to update.", true);

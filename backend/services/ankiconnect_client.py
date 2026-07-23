@@ -207,3 +207,45 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
 
 def trigger_sync() -> None:
     _invoke("sync")
+
+
+def find_deleted_note_ids(note_ids: List[int]) -> List[int]:
+    """Given note IDs this app previously pushed, return the ones that no
+    longer exist in Anki (e.g. deleted there directly, outside this app --
+    AnkiConnect's notesInfo returns an empty dict for any ID that's gone)."""
+    if not note_ids:
+        return []
+    infos = _invoke("notesInfo", notes=note_ids) or []
+    deleted = []
+    for note_id, info in zip(note_ids, infos):
+        if not info:
+            deleted.append(note_id)
+    return deleted
+
+
+def sync_check() -> Dict[str, Any]:
+    """Reconcile every card this app has ever pushed against Anki's actual
+    state: any card whose note has been deleted in Anki (outside this app)
+    is un-archived so it flows back into the normal review/push list --
+    the user asked to have the option to remake or permanently delete it,
+    rather than have it silently stay "already pushed" when it isn't."""
+    from ..storage import store
+
+    pushed_cards = [c for c in store.list_cards() if c.anki_note_id is not None]
+    note_ids = [c.anki_note_id for c in pushed_cards]
+    deleted_ids = set(find_deleted_note_ids(note_ids))
+
+    reset_card_ids = []
+    for card in pushed_cards:
+        if card.anki_note_id in deleted_ids:
+            card.archived = False
+            card.included = True
+            card.anki_note_id = None
+            store.update_card(card)
+            reset_card_ids.append(card.id)
+
+    return {
+        "checked": len(pushed_cards),
+        "still_in_anki": len(pushed_cards) - len(reset_card_ids),
+        "reset_card_ids": reset_card_ids,
+    }

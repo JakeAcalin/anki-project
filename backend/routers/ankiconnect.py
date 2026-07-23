@@ -45,3 +45,11 @@ def push(req: PushRequest):
             result["sync_error"] = str(exc)
 
     return result
+
+
+@router.post("/sync-check")
+def sync_check():
+    try:
+        return ankiconnect_client.sync_check()
+    except ankiconnect_client.AnkiConnectError as exc:
+        raise HTTPException(502, str(exc)) from exc

@@ -250,7 +250,7 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .primary-btn:hover { filter: brightness(1.08); box-shadow: 0 6px 26px var(--accent-glow); }
 .primary-btn:active { transform: scale(0.98); }
 .primary-btn:disabled { background: var(--text-faint); box-shadow: none; cursor: not-allowed; filter: none; }
-.primary-btn.full-width { width: 100%; margin-top: 14px; }
+.full-width { width: 100%; text-align: center; margin-top: 14px; }
 
 .secondary-btn {
   background: var(--surface); color: var(--accent-soft-text); border: 1px solid var(--border);
