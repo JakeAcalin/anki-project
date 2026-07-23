@@ -2,8 +2,8 @@
 
 Turn text, images, audio, and video into Anki flashcards. Each card gets a
 short front-side question and a detailed, AI-written back-side explanation,
-organized with hierarchical tags rooted at whatever deck it belongs to
-(`DeckName::Subject::Topic::Detail`) and subdecks (`Subject::Topic`).
+organized with hierarchical tags Claude assigns based on content
+(`Subject::Topic::Detail`) and subdecks (`Subject::Topic`).
 
 ## How it works
 

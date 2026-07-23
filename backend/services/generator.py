@@ -155,14 +155,31 @@ def _render_question_html(text: str) -> str:
 def _apply_tag_root(tags: List[str], root: str) -> List[str]:
     """Prepend `root` to every tag so the deck name is always the shared
     parent in Anki's tag tree (e.g. root='Pharm' turns 'CardiacDrugs' into
-    'Pharm::CardiacDrugs'). Enforced here rather than left to the prompt,
-    the same lesson as max_cards -- an LLM instruction is a suggestion, not
-    a guarantee."""
+    'Pharm::CardiacDrugs'). No longer applied to newly-generated cards (see
+    _strip_tag_root below) -- kept only for the historical migration that
+    already ran for existing installs."""
     root = root.strip()
     if not root:
         return tags
     prefix = f"{root}::"
     return [t if t == root or t.startswith(prefix) else f"{prefix}{t}" for t in tags]
+
+
+def _strip_tag_root(tags: List[str], root: str) -> List[str]:
+    """Inverse of _apply_tag_root: when a deck is someone's whole broad
+    subject (e.g. every card under 'Anesthesia'), forcing that name onto
+    every tag added nothing -- it's the same on every card. Drop a bare
+    root tag entirely and strip 'root::' off anything nested under it."""
+    root = root.strip()
+    if not root:
+        return tags
+    prefix = f"{root}::"
+    stripped = []
+    for t in tags:
+        if t == root:
+            continue
+        stripped.append(t[len(prefix):] if t.startswith(prefix) else t)
+    return stripped
 
 
 def build_cards_from_sources(
@@ -243,7 +260,7 @@ def build_cards_from_sources(
         common = dict(
             card_type=card_type,
             explanation=_render_explanation(raw.get("explanation_points", [])),
-            tags=_apply_tag_root(tags, deck),
+            tags=tags,
             deck=deck,
             source_ids=source_ids,
         )
@@ -361,7 +378,7 @@ def process_daily_notes() -> List[CardDraft]:
                 question=_render_question_html(raw.get("question", "")),
                 answer=raw.get("answer", "").strip(),
                 explanation=_render_explanation(raw.get("explanation_points", [])),
-                tags=_apply_tag_root(tags, deck),
+                tags=tags,
                 deck=deck,
                 source_ids=[],
             )
