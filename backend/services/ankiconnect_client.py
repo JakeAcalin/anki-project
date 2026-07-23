@@ -224,19 +224,27 @@ def find_deleted_note_ids(note_ids: List[int]) -> List[int]:
 
 
 def sync_check() -> Dict[str, Any]:
-    """Reconcile every card this app has ever pushed against Anki's actual
-    state: any card whose note has been deleted in Anki (outside this app)
-    is un-archived so it flows back into the normal review/push list --
-    the user asked to have the option to remake or permanently delete it,
-    rather than have it silently stay "already pushed" when it isn't."""
+    """Reconcile every archived ("already pushed") card against Anki's
+    actual state: any card whose note has been deleted in Anki (outside
+    this app) is un-archived so it flows back into the normal review/push
+    list -- the user asked to have the option to remake or permanently
+    delete it, rather than have it silently stay "already pushed" when it
+    isn't.
+
+    Cards archived without a stored Anki note ID (pushed before this app
+    tracked one, or archived some other way) have nothing to check against
+    -- treat "can't confirm it's in Anki" the same as "it's not," for the
+    same reason."""
     from ..storage import store
 
-    pushed_cards = [c for c in store.list_cards() if c.anki_note_id is not None]
-    note_ids = [c.anki_note_id for c in pushed_cards]
-    deleted_ids = set(find_deleted_note_ids(note_ids))
+    archived_cards = [c for c in store.list_cards() if c.archived]
+    trackable = [c for c in archived_cards if c.anki_note_id is not None]
+    untrackable = [c for c in archived_cards if c.anki_note_id is None]
+
+    deleted_ids = set(find_deleted_note_ids([c.anki_note_id for c in trackable]))
 
     reset_card_ids = []
-    for card in pushed_cards:
+    for card in trackable:
         if card.anki_note_id in deleted_ids:
             card.archived = False
             card.included = True
@@ -244,8 +252,14 @@ def sync_check() -> Dict[str, Any]:
             store.update_card(card)
             reset_card_ids.append(card.id)
 
+    for card in untrackable:
+        card.archived = False
+        card.included = True
+        store.update_card(card)
+        reset_card_ids.append(card.id)
+
     return {
-        "checked": len(pushed_cards),
-        "still_in_anki": len(pushed_cards) - len(reset_card_ids),
+        "checked": len(archived_cards),
+        "still_in_anki": len(archived_cards) - len(reset_card_ids),
         "reset_card_ids": reset_card_ids,
     }
