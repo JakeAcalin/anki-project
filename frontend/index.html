@@ -26,8 +26,7 @@
   </div>
   <div id="apiStatus" class="api-status"></div>
   <div id="ankiConnectStatus" class="api-status" title="AnkiConnect: a local Anki desktop add-on. Only shows connected while Anki desktop is open on this same machine."></div>
-  <button id="pushAnkiBtn" class="secondary-btn" style="margin-top:0;">📤 Push to Anki</button>
-  <button id="exportBtn" class="primary-btn">Export .apkg</button>
+  <button id="themeToggleBtn" class="icon-btn theme-toggle" title="Toggle light / dark theme">🌙</button>
 </header>
 
 <nav class="view-nav">
@@ -94,12 +93,18 @@
       <button id="generateBtn" class="primary-btn full-width">✨ Generate Cards</button>
     </div>
 
-    <div class="cards-header">
-      <h2>3. Review &amp; Edit Cards</h2>
-      <button id="addCardBtn" class="link-btn">+ Add card manually</button>
+    <div id="reviewSection" class="hidden">
+      <div class="cards-header">
+        <h2>3. Review &amp; Edit Cards</h2>
+        <button id="addCardBtn" class="link-btn">+ Add card manually</button>
+      </div>
+      <div id="tagCloud" class="tag-cloud"></div>
+      <div id="cardList" class="card-list"></div>
+      <div class="review-actions">
+        <button id="pushAnkiBtn" class="secondary-btn" style="margin-top:0;">📤 Push to Anki</button>
+        <button id="exportBtn" class="primary-btn">Export .apkg</button>
+      </div>
     </div>
-    <div id="tagCloud" class="tag-cloud"></div>
-    <div id="cardList" class="card-list"></div>
   </section>
 </main>
 

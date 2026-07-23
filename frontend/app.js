@@ -19,6 +19,35 @@ const libraryState = {
 let pollHandle = null;
 let dailyNotesSaveTimer = null;
 
+// ---------- theme ----------
+
+const THEME_KEY = "anki_app_theme";
+
+function effectiveDarkTheme(stored) {
+  if (stored === "dark") return true;
+  if (stored === "light") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
+function applyTheme(stored) {
+  if (stored === "light" || stored === "dark") {
+    document.documentElement.dataset.theme = stored;
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
+  const btn = document.getElementById("themeToggleBtn");
+  if (btn) btn.textContent = effectiveDarkTheme(stored) ? "🌙" : "☀️";
+}
+
+function initTheme() {
+  applyTheme(localStorage.getItem(THEME_KEY));
+  document.getElementById("themeToggleBtn").addEventListener("click", () => {
+    const next = effectiveDarkTheme(localStorage.getItem(THEME_KEY)) ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  });
+}
+
 // ---------- API helpers ----------
 
 async function api(path, options = {}) {
@@ -211,8 +240,11 @@ function renderClozePreview(text) {
 function renderCards() {
   const list = document.getElementById("cardList");
   const visibleCards = state.cards.filter((c) => !c.archived);
+  // The review/edit section is just clutter before there's anything to
+  // review, so keep it out of the way until the first card exists.
+  document.getElementById("reviewSection").classList.toggle("hidden", visibleCards.length === 0);
   if (visibleCards.length === 0) {
-    list.innerHTML = `<div class="empty-state">No cards yet. Generate from your sources, or add one manually. (Cards already pushed to Anki are archived here but still browsable in Library.)</div>`;
+    list.innerHTML = "";
     return;
   }
   list.innerHTML = visibleCards
@@ -770,5 +802,6 @@ function wireEvents() {
   setInterval(refreshAnkiConnectStatus, 15000);
 }
 
+initTheme();
 wireEvents();
 loadProject();

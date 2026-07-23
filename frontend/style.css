@@ -74,6 +74,76 @@
   }
 }
 
+/* Manual theme override via the topbar toggle (persisted in localStorage).
+   Attribute selectors out-specificity the plain :root media-query rules
+   above, so whichever of these is set always wins over the OS preference. */
+:root[data-theme="dark"] {
+  --accent: #7c6cff;
+  --accent-hover: #9384ff;
+  --accent-soft: rgba(124, 108, 255, 0.18);
+  --accent-soft-text: #c7bdff;
+  --accent-glow: rgba(124, 108, 255, 0.45);
+
+  --teal: #2dd9c4;
+  --teal-soft: rgba(45, 217, 196, 0.16);
+  --pink: #ff6fb0;
+  --pink-soft: rgba(255, 111, 176, 0.16);
+
+  --danger: #ff6b81;
+  --danger-soft: rgba(255, 107, 129, 0.16);
+  --green: #34e0a1;
+  --green-soft: rgba(52, 224, 161, 0.15);
+  --amber: #ffc857;
+  --amber-soft: rgba(255, 200, 87, 0.18);
+
+  --bg: #08080d;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-2: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.11);
+  --border-soft: rgba(255, 255, 255, 0.07);
+  --text: #f3f3f8;
+  --text-muted: #a9a9be;
+  --text-faint: #71718a;
+
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+:root[data-theme="light"] {
+  --accent: #6552e8;
+  --accent-hover: #5340d6;
+  --accent-soft: #ece9ff;
+  --accent-soft-text: #5340d6;
+  --accent-glow: rgba(101, 82, 232, 0.25);
+
+  --teal: #0d9488;
+  --teal-soft: #e3fbf8;
+  --pink: #db2777;
+  --pink-soft: #fce7f3;
+
+  --danger: #e11d48;
+  --danger-soft: #ffe4e8;
+  --green: #059669;
+  --green-soft: #e3f7ee;
+  --amber: #b45309;
+  --amber-soft: #fef3d9;
+
+  --bg: #f1f0f7;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-2: rgba(255, 255, 255, 0.5);
+  --surface-hover: rgba(255, 255, 255, 0.9);
+  --border: rgba(24, 20, 60, 0.1);
+  --border-soft: rgba(24, 20, 60, 0.06);
+  --text: #18171f;
+  --text-muted: #63637a;
+  --text-faint: #9595ab;
+
+  --shadow-sm: 0 1px 3px rgba(20, 20, 50, 0.06);
+  --shadow: 0 8px 24px rgba(20, 20, 50, 0.08);
+  --shadow-lg: 0 20px 50px rgba(20, 20, 50, 0.14);
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -99,6 +169,20 @@ body {
       radial-gradient(circle at 78% 90%, rgba(219, 39, 119, 0.08), transparent 45%),
       radial-gradient(circle at 5% 85%, rgba(124, 108, 255, 0.07), transparent 42%);
   }
+}
+:root[data-theme="dark"] body {
+  background-image:
+    radial-gradient(circle at 10% 5%, rgba(124, 108, 255, 0.32), transparent 42%),
+    radial-gradient(circle at 90% 12%, rgba(45, 217, 196, 0.22), transparent 40%),
+    radial-gradient(circle at 78% 90%, rgba(255, 111, 176, 0.2), transparent 45%),
+    radial-gradient(circle at 5% 85%, rgba(124, 108, 255, 0.16), transparent 42%);
+}
+:root[data-theme="light"] body {
+  background-image:
+    radial-gradient(circle at 10% 5%, rgba(124, 108, 255, 0.12), transparent 42%),
+    radial-gradient(circle at 90% 12%, rgba(13, 148, 136, 0.1), transparent 40%),
+    radial-gradient(circle at 78% 90%, rgba(219, 39, 119, 0.08), transparent 45%),
+    radial-gradient(circle at 5% 85%, rgba(124, 108, 255, 0.07), transparent 42%);
 }
 
 h2 {
@@ -136,8 +220,6 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   .brand { width: 100%; margin-right: 0; font-size: 14px; }
   .deck-name-field { width: 100%; }
   .deck-name-field input { width: auto; flex: 1; min-width: 0; }
-  .api-status { order: 1; }
-  #pushAnkiBtn, #exportBtn { order: 2; }
 }
 .api-status {
   font-size: 12px;
@@ -182,6 +264,12 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .link-btn:hover { color: var(--accent-hover); }
 .icon-btn { background: none; border: none; color: var(--text-faint); font-size: 12px; font-weight: 600; padding: 2px 4px; border-radius: 6px; transition: color .15s ease, background .15s ease; }
 .icon-btn:hover { color: var(--danger); background: var(--danger-soft); }
+
+.theme-toggle {
+  font-size: 16px; padding: 6px 9px; border-radius: 999px;
+  background: var(--surface); border: 1px solid var(--border-soft);
+}
+.theme-toggle:hover { color: var(--accent); background: var(--accent-soft); }
 
 .banner {
   background: var(--amber-soft); border-bottom: 1px solid var(--border-soft); color: var(--amber);
@@ -359,6 +447,7 @@ textarea { resize: vertical; }
 .source-checkboxes label { font-size: 13px; display: flex; gap: 7px; align-items: center; color: var(--text); }
 .source-checkboxes label.disabled { color: var(--text-faint); }
 
+#reviewSection.hidden { display: none; }
 .cards-header { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding: 0 2px; }
 .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 2px; }
 .tag-chip {
@@ -392,6 +481,15 @@ textarea { resize: vertical; }
 .card-deck-row { display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--text-muted); }
 .card-deck-row input { width: 200px; }
 .empty-state { color: var(--text-faint); font-size: 13px; padding: 24px; text-align: center; }
+
+.review-actions {
+  display: flex; justify-content: flex-end; align-items: center; gap: 10px;
+  margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border-soft);
+}
+@media (max-width: 640px) {
+  .review-actions { flex-direction: column-reverse; align-items: stretch; }
+  .review-actions .primary-btn, .review-actions .secondary-btn { width: 100%; text-align: center; }
+}
 
 .explanation-preview {
   font-size: 15px;
