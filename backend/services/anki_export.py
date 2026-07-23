@@ -32,6 +32,7 @@ CSS = """
   line-height: 1.4;
 }
 .question { font-size: 22px; font-weight: 600; }
+.question u { text-decoration-color: #0b5fff; text-decoration-thickness: 2px; }
 hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
 .answer { font-size: 20px; font-weight: 600; color: #0b5fff; margin-bottom: 12px; }
 .cloze-text { font-size: 22px; font-weight: 500; }
@@ -48,6 +49,13 @@ hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
 }
 .explanation p { margin: 0 0 8px 0; }
 .explanation ul { margin: 4px 0 8px 20px; }
+.explanation mark, .cloze-text mark {
+  background: #fde68a;
+  color: #7c4a03;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
 .answer-images { margin-top: 14px; }
 .answer-images img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
 """

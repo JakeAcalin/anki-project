@@ -185,7 +185,10 @@ function renderSourceCheckboxes() {
 function renderTagCloud() {
   const el = document.getElementById("tagCloud");
   const tags = new Set();
-  state.cards.forEach((c) => c.tags.forEach((t) => tags.add(t)));
+  // Same visibility rule as the card list below it: a tag cloud full of
+  // tags from cards you can't even see (already pushed & archived) reads
+  // as leftover clutter, not a "fresh workspace."
+  state.cards.filter((c) => !c.archived).forEach((c) => c.tags.forEach((t) => tags.add(t)));
   if (tags.size === 0) {
     el.innerHTML = "";
     return;
@@ -203,6 +206,7 @@ function renderClozePreview(text) {
     (_match, inner) => `<span class="cloze-blank">${inner}</span>`
   );
 }
+
 
 function renderCards() {
   const list = document.getElementById("cardList");
@@ -225,8 +229,11 @@ function renderCards() {
             <div class="card-field-label">Preview</div>
             <div class="explanation-preview cloze-preview" data-preview="cloze_text">${renderClozePreview(c.cloze_text)}</div>`
         : `
-            <div class="card-field-label">Question</div>
+            <div class="card-field-label">Question (edit as HTML source)</div>
+            <p class="field-hint" style="margin: -4px 0 2px 0;">Wrap key words in <code>&lt;b&gt;</code>, <code>&lt;i&gt;</code>, or <code>&lt;u&gt;</code> tags to emphasize them.</p>
             <textarea data-field="question">${escapeHtml(c.question)}</textarea>
+            <div class="card-field-label">Preview</div>
+            <div class="question-preview" data-preview="question">${c.question}</div>
             <div class="card-field-label">Answer</div>
             <textarea data-field="answer">${escapeHtml(c.answer)}</textarea>`;
 
@@ -319,7 +326,7 @@ function renderLibraryArticles(cards) {
   return cards
     .map((c) => {
       const isCloze = c.card_type === "cloze";
-      const heading = isCloze ? renderClozePreview(c.cloze_text) : escapeHtml(c.question);
+      const heading = isCloze ? renderClozePreview(c.cloze_text) : c.question;
       const answerBlock = isCloze ? "" : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
       const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
       const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
@@ -649,7 +656,7 @@ function wireEvents() {
 
   document.getElementById("cardList").addEventListener("input", (e) => {
     const field = e.target.dataset.field;
-    if (field !== "explanation" && field !== "cloze_text") return;
+    if (field !== "explanation" && field !== "cloze_text" && field !== "question") return;
     const item = e.target.closest(".card-item");
     const preview = item.querySelector(`[data-preview="${field}"]`);
     if (!preview) return;

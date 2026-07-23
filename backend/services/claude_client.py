@@ -105,7 +105,13 @@ _BASIC_CARD_PROPERTIES = {
         "type": "string",
         "description": (
             "The front of the card: one short, focused question, ideally under 15 "
-            "words. No preamble, no multi-part questions."
+            "words. No preamble, no multi-part questions. Mark up the single most "
+            "important term or qualifier using plain-text emphasis markers -- "
+            "**double asterisks** for bold on the key concept being tested, and "
+            "*single asterisks* or __double underscores__ sparingly for a critical "
+            "qualifier (e.g. a negation, timeframe, or comparison word) if there is "
+            "one. Usually just one emphasized span is enough; don't over-mark. "
+            "Example: 'Which nerve is **most** at risk in the *lithotomy* position?'"
         ),
     },
     "answer": {
@@ -141,10 +147,15 @@ _SHARED_CARD_PROPERTIES = {
         "type": "array",
         "items": {"type": "string"},
         "description": (
-            "2-4 short, plain-text bullet points (no HTML, no markdown, no bullet "
-            "characters — just the sentence) that give the answer-side depth: "
-            "mechanism, context, a common misconception, or an example. Each point "
-            "should be one short, easily digestible sentence, not a paragraph."
+            "2-4 short, plain-text bullet points (no HTML, no bullet characters -- "
+            "just the sentence) that give the answer-side depth: mechanism, context, "
+            "a common misconception, or an example. Each point should be one short, "
+            "easily digestible sentence, not a paragraph. Wrap the single most "
+            "important phrase in each point with ==double equals signs== so it gets "
+            "highlighted -- usually the specific fact, number, or distinguishing "
+            "detail someone reviewing this card would want to catch at a glance. "
+            "Mark at most one span per point; leave a point unmarked if nothing in "
+            "it truly stands out."
         ),
     },
     "tags": {

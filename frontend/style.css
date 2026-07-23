@@ -203,6 +203,8 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
   padding: 18px 20px; box-shadow: var(--shadow-sm);
 }
 .wiki-question { font-size: 17px; font-weight: 700; margin: 0 0 8px 0; letter-spacing: -0.01em; text-transform: none; color: var(--text); }
+.wiki-question b { color: var(--accent); }
+.wiki-question u { text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
 .wiki-answer { font-size: 15px; font-weight: 650; color: var(--accent); margin-bottom: 8px; }
 .wiki-explanation {
   font-size: 14.5px; line-height: 1.6; color: var(--text-muted);
@@ -353,6 +355,23 @@ textarea { resize: vertical; }
 .explanation-preview p { margin: 0 0 8px 0; }
 .explanation-preview ul { margin: 4px 0 4px 20px; padding: 0; }
 .explanation-preview:empty::before { content: "(empty)"; color: var(--text-faint); font-style: italic; }
+.explanation-preview mark, .wiki-explanation mark {
+  background: var(--amber-soft);
+  color: var(--amber);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.question-preview {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface-2);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+}
+.question-preview u { text-decoration-color: var(--accent); text-decoration-thickness: 2px; }
 
 .cloze-blank {
   background: var(--accent-soft); color: var(--accent-soft-text); font-weight: 700;

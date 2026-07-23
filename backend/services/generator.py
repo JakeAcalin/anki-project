@@ -2,6 +2,7 @@
 CardDraft objects. This is the only module that talks to both the storage
 layer and the transcription/video/claude_client services."""
 import html
+import re
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -93,11 +94,18 @@ def _combine_description_and_highlights(description: str, highlights: List[str])
     return text
 
 
+_HIGHLIGHT_RE = re.compile(r"==(.+?)==")
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+_UNDERLINE_RE = re.compile(r"__(.+?)__")
+_ITALIC_RE = re.compile(r"\*(.+?)\*")
+
+
 def _render_explanation(points: List[str]) -> str:
     """Build guaranteed-safe HTML from plain-text bullet points instead of
-    trusting an LLM to hand-write valid HTML. Escaping here means a stray
-    '<' or '&' in the model's text can never leak through as a broken tag
-    or show up literally on the card."""
+    trusting an LLM to hand-write valid HTML. Escaping happens first, so a
+    stray '<' or '&' in the model's text can never leak through as a broken
+    tag; the markdown-lite ==highlight== marker is only converted to <mark>
+    afterward, on already-safe text, so Claude never controls raw HTML."""
     items = []
     for p in points:
         if not isinstance(p, str):
@@ -107,7 +115,23 @@ def _render_explanation(points: List[str]) -> str:
             items.append(cleaned)
     if not items:
         return ""
-    return "<ul>" + "".join(f"<li>{html.escape(item)}</li>" for item in items) + "</ul>"
+    rendered = []
+    for item in items:
+        escaped = html.escape(item)
+        escaped = _HIGHLIGHT_RE.sub(r"<mark>\1</mark>", escaped)
+        rendered.append(f"<li>{escaped}</li>")
+    return "<ul>" + "".join(rendered) + "</ul>"
+
+
+def _render_question_html(text: str) -> str:
+    """Same safe pattern as _render_explanation: escape first, then convert
+    a constrained markdown-lite syntax (**bold**, __underline__, *italic*)
+    into real tags on the already-escaped text."""
+    escaped = html.escape((text or "").strip())
+    escaped = _BOLD_RE.sub(r"<b>\1</b>", escaped)
+    escaped = _UNDERLINE_RE.sub(r"<u>\1</u>", escaped)
+    escaped = _ITALIC_RE.sub(r"<i>\1</i>", escaped)
+    return escaped
 
 
 def _apply_tag_root(tags: List[str], root: str) -> List[str]:
@@ -193,7 +217,7 @@ def build_cards_from_sources(
         if card_type == CardType.basic:
             cards.append(
                 CardDraft(
-                    question=raw.get("question", "").strip(),
+                    question=_render_question_html(raw.get("question", "")),
                     answer=raw.get("answer", "").strip(),
                     **common,
                 )
@@ -252,7 +276,7 @@ def process_daily_notes() -> List[CardDraft]:
         cards.append(
             CardDraft(
                 card_type=CardType.basic,
-                question=raw.get("question", "").strip(),
+                question=_render_question_html(raw.get("question", "")),
                 answer=raw.get("answer", "").strip(),
                 explanation=_render_explanation(raw.get("explanation_points", [])),
                 tags=_apply_tag_root(tags, deck),
