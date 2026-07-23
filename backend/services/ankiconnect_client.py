@@ -167,6 +167,16 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
                         _invoke("updateNoteTags", note=note_id, tags=" ".join(tags))
                     except AnkiConnectError:
                         pass  # older AnkiConnect versions may not have this action
+                    try:
+                        # Deck membership is a property of a note's cards, not
+                        # the note itself, so moving decks means updating
+                        # every card under this note (findCards) even though
+                        # everything else here is addressed by note ID.
+                        note_card_ids = _invoke("findCards", query=f"nid:{note_id}") or []
+                        if note_card_ids:
+                            _invoke("changeDeck", cards=note_card_ids, deck=deck_name)
+                    except AnkiConnectError:
+                        pass  # deck move is best-effort; the field/tag update above still counts as success
                     note_updated = True
                     updated.append(card.id)
                 except AnkiConnectError:

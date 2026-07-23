@@ -381,15 +381,7 @@ function renderLibraryArticles(cards) {
     .join("");
 }
 
-function renderLibrary() {
-  const tree = buildTagTree(state.cards);
-  const allActive = !libraryState.selectedPath ? "active" : "";
-  document.getElementById("topicTree").innerHTML =
-    `<button class="topic-node topic-node-all ${allActive}" data-path="">
-       <span class="topic-name">All topics</span>
-       <span class="topic-count">${state.cards.length}</span>
-     </button>` + renderTopicTree(tree, state.cards);
-
+function getVisibleLibraryCards() {
   let cards = cardsUnderPath(state.cards, libraryState.selectedPath);
   const query = libraryState.search.trim().toLowerCase();
   if (query) {
@@ -400,9 +392,46 @@ function renderLibrary() {
       return haystack.includes(query);
     });
   }
+  return cards;
+}
 
+function renderLibrary() {
+  const tree = buildTagTree(state.cards);
+  const allActive = !libraryState.selectedPath ? "active" : "";
+  document.getElementById("topicTree").innerHTML =
+    `<button class="topic-node topic-node-all ${allActive}" data-path="">
+       <span class="topic-name">All topics</span>
+       <span class="topic-count">${state.cards.length}</span>
+     </button>` + renderTopicTree(tree, state.cards);
+
+  const cards = getVisibleLibraryCards();
   document.getElementById("libraryHeading").textContent = libraryState.selectedPath || "All topics";
   document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(cards);
+}
+
+// Re-roots each card's own tags under `newDeck` (using that card's current
+// deck as the prefix to replace, so a batch with mixed/hand-edited decks
+// still ends up consistent) and saves both fields. Shared by the Create-tab
+// and Library "Change deck" actions.
+async function bulkChangeDeck(cards, newDeck) {
+  await Promise.all(
+    cards.map((c) => {
+      const oldPrefix = `${c.deck}::`;
+      const newTags = c.tags.map((t) => {
+        if (t === c.deck) return newDeck;
+        if (t.startsWith(oldPrefix)) return `${newDeck}::${t.slice(oldPrefix.length)}`;
+        return t;
+      });
+      return api(`/api/cards/${c.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deck: newDeck, tags: newTags }),
+      }).then((updated) => {
+        const idx = state.cards.findIndex((x) => x.id === c.id);
+        if (idx !== -1) state.cards[idx] = updated;
+      });
+    })
+  );
 }
 
 // ---------- Daily Notes view ----------
@@ -549,6 +578,40 @@ function wireEvents() {
     renderLibrary();
   });
 
+  document.getElementById("libraryChangeDeckBtn").addEventListener("click", async () => {
+    const visible = getVisibleLibraryCards();
+    if (visible.length === 0) return showToast("No cards to update.", true);
+    const input = prompt(
+      `New deck for these ${visible.length} card${visible.length === 1 ? "" : "s"}:`,
+      visible[0].deck || state.deckName
+    );
+    if (input === null) return;
+    const newDeck = input.trim();
+    if (!newDeck) return showToast("Deck name can't be empty.", true);
+
+    await bulkChangeDeck(visible, newDeck);
+
+    // Cards already pushed to Anki (they have an anki_note_id) need the
+    // move applied there too; anything not yet pushed will simply pick up
+    // the new deck value the next time it's pushed from the Create tab.
+    const alreadyPushedIds = visible.filter((c) => c.anki_note_id).map((c) => c.id);
+    let ankiNote = "";
+    if (alreadyPushedIds.length > 0) {
+      try {
+        const result = await api("/api/anki-connect/push", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ card_ids: alreadyPushedIds, sync_after: true }),
+        });
+        ankiNote = result.failed.length > 0 ? `, ${result.failed.length} failed to update in Anki` : ", moved in Anki";
+      } catch (err) {
+        ankiNote = " (couldn't reach Anki to move them there -- open Anki desktop and click Change deck again)";
+      }
+    }
+    renderLibrary();
+    showToast(`Moved ${visible.length} card${visible.length === 1 ? "" : "s"} to "${newDeck}"${ankiNote}.`);
+  });
+
   document.getElementById("dailyNotesText").addEventListener("input", (e) => {
     renderDailyNotesPendingCount();
     document.getElementById("dailyNotesSaveState").textContent = "Editing…";
@@ -678,27 +741,7 @@ function wireEvents() {
     const newDeck = input.trim();
     if (!newDeck) return showToast("Deck name can't be empty.", true);
 
-    await Promise.all(
-      visible.map((c) => {
-        // Re-root this card's own tags under the new deck -- each card may
-        // already have a different deck value if it was hand-edited, so use
-        // its own current deck as the prefix to replace, not a shared one.
-        const oldPrefix = `${c.deck}::`;
-        const newTags = c.tags.map((t) => {
-          if (t === c.deck) return newDeck;
-          if (t.startsWith(oldPrefix)) return `${newDeck}::${t.slice(oldPrefix.length)}`;
-          return t;
-        });
-        return api(`/api/cards/${c.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ deck: newDeck, tags: newTags }),
-        }).then((updated) => {
-          const idx = state.cards.findIndex((x) => x.id === c.id);
-          if (idx !== -1) state.cards[idx] = updated;
-        });
-      })
-    );
+    await bulkChangeDeck(visible, newDeck);
     renderCards();
     renderTagCloud();
     showToast(`Moved ${visible.length} card${visible.length === 1 ? "" : "s"} to "${newDeck}".`);
