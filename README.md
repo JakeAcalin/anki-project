@@ -94,6 +94,14 @@ a button. Generated cards are tagged `Daily Notes` (plus whatever subject
 tags Claude naturally assigns) so they're easy to find in the Library view
 alongside everything else.
 
+Daily Notes cards skip the manual review step entirely: right after
+generation, the app tries to push them straight into Anki (and trigger an
+AnkiWeb sync) on its own. If Anki desktop isn't open at that moment, the
+cards are simply left pending — a background job retries every 15 minutes
+for as long as the backend keeps running, so as soon as you reopen Anki the
+cards sync automatically with no action needed. The Daily Notes tab shows
+whether the last push succeeded or is still waiting on Anki.
+
 ## Architecture
 
 ```

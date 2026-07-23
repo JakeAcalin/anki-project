@@ -7,7 +7,10 @@ const state = {
   selectedSourceIds: new Set(),
   cardType: "basic",
   ankiConnectAvailable: false,
-  dailyNotes: { text: "", processed_length: 0, last_run_at: null, last_run_card_count: 0, last_run_error: null },
+  dailyNotes: {
+    text: "", processed_length: 0, last_run_at: null, last_run_card_count: 0, last_run_error: null,
+    last_push_at: null, last_push_count: 0, last_push_error: null,
+  },
   dailyNotesCardTime: "23:59",
 };
 
@@ -444,6 +447,17 @@ function renderDailyNotes() {
   }
   if (state.dailyNotes.last_run_error) {
     parts.push(`<span class="error">Last run failed: ${escapeHtml(state.dailyNotes.last_run_error)}</span>`);
+  }
+  if (state.dailyNotes.last_push_at) {
+    if (state.dailyNotes.last_push_error) {
+      parts.push(
+        `<span class="error">Couldn't reach Anki ${relativeTime(state.dailyNotes.last_push_at)} ` +
+          `(${escapeHtml(state.dailyNotes.last_push_error)}) — will keep retrying automatically ` +
+          `while this app is running.</span>`
+      );
+    } else {
+      parts.push(`Pushed ${state.dailyNotes.last_push_count} card${state.dailyNotes.last_push_count === 1 ? "" : "s"} to Anki ${relativeTime(state.dailyNotes.last_push_at)}.`);
+    }
   }
   runStatus.innerHTML = parts.join(" ");
 }

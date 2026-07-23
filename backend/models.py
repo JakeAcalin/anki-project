@@ -82,6 +82,9 @@ class DailyNotes(BaseModel):
     last_run_at: Optional[float] = None
     last_run_card_count: int = 0
     last_run_error: Optional[str] = None
+    last_push_at: Optional[float] = None
+    last_push_count: int = 0
+    last_push_error: Optional[str] = None
 
 
 class Project(BaseModel):

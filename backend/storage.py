@@ -184,5 +184,14 @@ class Store:
             self._save()
             return notes
 
+    def mark_daily_notes_pushed(self, pushed_count: int, error: Optional[str] = None) -> DailyNotes:
+        with self._lock:
+            notes = self._project.daily_notes
+            notes.last_push_at = time.time()
+            notes.last_push_count = pushed_count
+            notes.last_push_error = error
+            self._save()
+            return notes
+
 
 store = Store()

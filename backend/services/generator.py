@@ -234,6 +234,46 @@ def build_cards_from_sources(
     return cards
 
 
+def _is_daily_notes_card(card: CardDraft) -> bool:
+    return any(t == "Daily Notes" or t.endswith("::Daily Notes") for t in card.tags)
+
+
+def push_pending_daily_notes_cards() -> None:
+    """Best-effort push of any not-yet-synced Daily Notes cards straight to
+    Anki. Called right after nightly generation, and again periodically by
+    the scheduler (see scheduler.py) -- so if Anki desktop wasn't open at
+    generation time, the cards don't just sit there: they get pushed
+    automatically the next time Anki (and this retry job) both happen to be
+    running, with no manual step required."""
+    from . import ankiconnect_client
+
+    pending = [c for c in store.list_cards() if not c.archived and c.included and _is_daily_notes_card(c)]
+    if not pending:
+        return
+
+    try:
+        result = ankiconnect_client.push_cards(pending)
+    except ankiconnect_client.AnkiConnectError as exc:
+        store.mark_daily_notes_pushed(0, error=str(exc))
+        return
+
+    pushed_ids = set(result["added"]) | set(result["updated"])
+    for card in pending:
+        if card.id in pushed_ids:
+            card.archived = True
+            card.included = False
+            store.update_card(card)
+
+    error = f"{len(result['failed'])} card(s) failed to push." if result["failed"] else None
+    store.mark_daily_notes_pushed(len(pushed_ids), error=error)
+
+    if pushed_ids:
+        try:
+            ankiconnect_client.trigger_sync()
+        except ankiconnect_client.AnkiConnectError:
+            pass  # AnkiWeb sync is a bonus, not required for the push itself
+
+
 def process_daily_notes() -> List[CardDraft]:
     """Cards only the text appended to the Daily Notes page since the last
     run (tracked via a character-offset checkpoint), so re-running never
@@ -287,4 +327,5 @@ def process_daily_notes() -> List[CardDraft]:
 
     store.add_cards(cards)
     store.mark_daily_notes_processed(checkpoint, len(cards))
+    push_pending_daily_notes_cards()
     return cards

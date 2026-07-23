@@ -6,12 +6,19 @@ import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from . import config
 
 logger = logging.getLogger(__name__)
 
 _scheduler = BackgroundScheduler()
+
+# How often to retry pushing any Daily Notes cards that are still waiting on
+# Anki (e.g. Anki desktop was closed at generation time). Frequent enough
+# that reopening Anki gets your cards synced within minutes, cheap enough
+# (a no-op when nothing is pending) to just leave running.
+_PUSH_RETRY_INTERVAL_MINUTES = 15
 
 
 def _run_daily_notes_job() -> None:
@@ -21,6 +28,15 @@ def _run_daily_notes_job() -> None:
         process_daily_notes()
     except Exception:  # noqa: BLE001 - a scheduler job must never raise
         logger.exception("Daily notes card generation failed")
+
+
+def _run_daily_notes_push_retry_job() -> None:
+    from .services.generator import push_pending_daily_notes_cards
+
+    try:
+        push_pending_daily_notes_cards()
+    except Exception:  # noqa: BLE001 - a scheduler job must never raise
+        logger.exception("Daily notes push retry failed")
 
 
 def _parse_time(value: str):
@@ -38,6 +54,12 @@ def start() -> None:
         _run_daily_notes_job,
         CronTrigger(hour=hour, minute=minute),
         id="daily_notes_card_job",
+        replace_existing=True,
+    )
+    _scheduler.add_job(
+        _run_daily_notes_push_retry_job,
+        IntervalTrigger(minutes=_PUSH_RETRY_INTERVAL_MINUTES),
+        id="daily_notes_push_retry_job",
         replace_existing=True,
     )
     if not _scheduler.running:
