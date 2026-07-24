@@ -7,6 +7,7 @@ const state = {
   selectedSourceIds: new Set(),
   cardType: "basic",
   ankiConnectAvailable: false,
+  ankiDecks: [],
   dailyNotes: {
     text: "", processed_length: 0, last_run_at: null, last_run_card_count: 0, last_run_error: null,
     last_run_questions: [], last_push_at: null, last_push_count: 0, last_push_error: null,
@@ -127,12 +128,55 @@ async function refreshAnkiConnectStatus() {
 async function refreshDeckSuggestions() {
   try {
     const data = await api("/api/anki-connect/decks");
-    document.getElementById("deckSuggestions").innerHTML = data.decks
-      .map((d) => `<option value="${escapeHtml(d)}"></option>`)
-      .join("");
+    state.ankiDecks = data.decks;
   } catch (_) {
     // Autocomplete is a bonus, not worth surfacing an error over.
   }
+}
+
+// Custom-styled combobox: a plain text input (still free-typeable, so a
+// brand-new deck name works fine) paired with a dropdown of matching real
+// Anki decks, since the native <datalist> UI can't be restyled to match
+// the rest of the app.
+function attachDeckAutocomplete(input) {
+  const list = input.parentElement.querySelector(".deck-suggest-list");
+  if (!list || input.dataset.autocompleteAttached) return;
+  input.dataset.autocompleteAttached = "1";
+
+  function show() {
+    const query = input.value.trim().toLowerCase();
+    const matches = state.ankiDecks.filter((d) => d.toLowerCase().includes(query));
+    if (matches.length === 0 || (matches.length === 1 && matches[0].toLowerCase() === query)) {
+      list.classList.add("hidden");
+      list.innerHTML = "";
+      return;
+    }
+    list.innerHTML = matches
+      .slice(0, 20)
+      .map((d) => `<div class="deck-suggest-item" data-value="${escapeHtml(d)}">${escapeHtml(d)}</div>`)
+      .join("");
+    list.classList.remove("hidden");
+  }
+
+  input.addEventListener("focus", show);
+  input.addEventListener("input", show);
+  input.addEventListener("blur", () => {
+    // Delay so a click on a suggestion (see mousedown below) registers
+    // before the list disappears.
+    setTimeout(() => list.classList.add("hidden"), 150);
+  });
+  list.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".deck-suggest-item");
+    if (!item) return;
+    e.preventDefault(); // keep focus on the input instead of blurring first
+    input.value = item.dataset.value;
+    list.classList.add("hidden");
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+}
+
+function attachAllDeckAutocompletes(root = document) {
+  root.querySelectorAll(".deck-autocomplete input").forEach(attachDeckAutocomplete);
 }
 
 function renderAnkiConnectStatus() {
@@ -306,7 +350,11 @@ function renderCards() {
               <input type="text" data-field="tags" value="${escapeHtml(c.tags.join(", "))}" placeholder="Topic::Subtopic, OtherTag" />
             </div>
             <div class="card-deck-row">
-              Deck: <input type="text" data-field="deck" value="${escapeHtml(c.deck)}" list="deckSuggestions" />
+              Deck:
+              <div class="deck-autocomplete">
+                <input type="text" data-field="deck" value="${escapeHtml(c.deck)}" autocomplete="off" />
+                <div class="deck-suggest-list hidden"></div>
+              </div>
               <button class="icon-btn" data-action="delete">Delete card</button>
             </div>
           </div>
@@ -314,6 +362,7 @@ function renderCards() {
       </div>`;
     })
     .join("");
+  attachAllDeckAutocompletes(list);
 }
 
 function escapeHtml(str) {
@@ -993,4 +1042,5 @@ function wireEvents() {
 
 initTheme();
 wireEvents();
+attachAllDeckAutocompletes();
 loadProject();
