@@ -22,7 +22,8 @@
   <div class="brand">🗂️ Anki Card Media Generator</div>
   <div class="deck-name-field">
     <label>Deck</label>
-    <input id="deckNameInput" type="text" placeholder="e.g. Biology::Cell Biology" />
+    <input id="deckNameInput" type="text" placeholder="e.g. Biology::Cell Biology" list="deckSuggestions" />
+    <datalist id="deckSuggestions"></datalist>
   </div>
   <div id="apiStatus" class="api-status"></div>
   <div id="ankiConnectStatus" class="api-status" title="AnkiConnect: a local Anki desktop add-on. Only shows connected while Anki desktop is open on this same machine."></div>

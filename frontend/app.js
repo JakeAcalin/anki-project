@@ -109,6 +109,7 @@ async function loadProject() {
 }
 
 async function refreshAnkiConnectStatus() {
+  const wasAvailable = state.ankiConnectAvailable;
   try {
     const data = await api("/api/anki-connect/status");
     state.ankiConnectAvailable = data.available;
@@ -116,6 +117,22 @@ async function refreshAnkiConnectStatus() {
     state.ankiConnectAvailable = false;
   }
   renderAnkiConnectStatus();
+  // Only worth re-fetching when Anki just became reachable -- avoids a
+  // pointless request every 15s poll while it's known to be unavailable.
+  if (state.ankiConnectAvailable && !wasAvailable) {
+    refreshDeckSuggestions();
+  }
+}
+
+async function refreshDeckSuggestions() {
+  try {
+    const data = await api("/api/anki-connect/decks");
+    document.getElementById("deckSuggestions").innerHTML = data.decks
+      .map((d) => `<option value="${escapeHtml(d)}"></option>`)
+      .join("");
+  } catch (_) {
+    // Autocomplete is a bonus, not worth surfacing an error over.
+  }
 }
 
 function renderAnkiConnectStatus() {
@@ -289,7 +306,7 @@ function renderCards() {
               <input type="text" data-field="tags" value="${escapeHtml(c.tags.join(", "))}" placeholder="Topic::Subtopic, OtherTag" />
             </div>
             <div class="card-deck-row">
-              Deck: <input type="text" data-field="deck" value="${escapeHtml(c.deck)}" />
+              Deck: <input type="text" data-field="deck" value="${escapeHtml(c.deck)}" list="deckSuggestions" />
               <button class="icon-btn" data-action="delete">Delete card</button>
             </div>
           </div>

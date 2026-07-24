@@ -56,6 +56,15 @@ def is_available() -> bool:
         return False
 
 
+def list_decks() -> List[str]:
+    """Real deck names from Anki, so the app's own Deck field can offer
+    autocomplete against what actually exists -- typing a plain name like
+    'Truelearn' instead of the full nested path 'MasterDeck::Truelearn'
+    silently creates a new top-level deck instead of matching the existing
+    subdeck, since Anki (and this app) just takes the string literally."""
+    return _invoke("deckNames") or []
+
+
 def _model_exists(name: str) -> bool:
     return name in (_invoke("modelNames") or [])
 
