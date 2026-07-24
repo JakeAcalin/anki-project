@@ -653,6 +653,33 @@ function wireEvents() {
     dailyNotesSaveTimer = setTimeout(() => saveDailyNotes(e.target.value), 1200);
   });
 
+  document.getElementById("dailyNotesRunNowBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("dailyNotesRunNowBtn");
+    // Make sure whatever's currently typed is saved before running, rather
+    // than relying on the 1.2s debounce to have already fired.
+    clearTimeout(dailyNotesSaveTimer);
+    const textarea = document.getElementById("dailyNotesText");
+    await saveDailyNotes(textarea.value);
+
+    btn.disabled = true;
+    btn.textContent = "Running…";
+    try {
+      const notes = await api("/api/daily-notes/run-now", { method: "POST" });
+      state.dailyNotes = notes;
+      renderDailyNotes();
+      showToast(
+        notes.last_run_card_count > 0
+          ? `Generated ${notes.last_run_card_count} card${notes.last_run_card_count === 1 ? "" : "s"}.`
+          : "Ran, but there was nothing new to card."
+      );
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "▶ Run Now";
+    }
+  });
+
   document.getElementById("deckNameInput").addEventListener("change", async (e) => {
     await api("/api/project/deck-name", {
       method: "PUT",
