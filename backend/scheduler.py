@@ -55,6 +55,11 @@ def start() -> None:
         CronTrigger(hour=hour, minute=minute),
         id="daily_notes_card_job",
         replace_existing=True,
+        # A laptop that's asleep at 23:59 means the scheduler never got a
+        # chance to fire then -- without a generous grace window here,
+        # APScheduler just skips straight to tomorrow's occurrence instead
+        # of catching up once the machine wakes back up.
+        misfire_grace_time=12 * 3600,
     )
     _scheduler.add_job(
         _run_daily_notes_push_retry_job,

@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,6 +11,7 @@ from .auth import BasicAuthMiddleware
 from .routers import ankiconnect, cards, daily_notes, export, generate, media, project, sources
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+logger = logging.getLogger(__name__)
 
 
 class NoCacheStaticMiddleware(BaseHTTPMiddleware):
@@ -46,6 +48,16 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 def _on_startup():
     migrations.run_migrations()
     scheduler.start()
+    _catch_up_daily_notes()
+
+
+def _catch_up_daily_notes() -> None:
+    from .services.generator import catch_up_daily_notes_if_overdue
+
+    try:
+        catch_up_daily_notes_if_overdue()
+    except Exception:  # noqa: BLE001 - startup must never crash on this
+        logger.exception("Daily notes startup catch-up failed")
 
 
 @app.on_event("shutdown")

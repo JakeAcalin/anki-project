@@ -333,6 +333,27 @@ def push_pending_daily_notes_cards() -> None:
             pass  # AnkiWeb sync is a bonus, not required for the push itself
 
 
+_CATCH_UP_THRESHOLD_SECONDS = 20 * 3600  # ~20 hours
+
+
+def catch_up_daily_notes_if_overdue() -> None:
+    """Startup safety net for the scheduled Daily Notes job: a laptop that
+    was asleep (or the server wasn't running) through the scheduled trigger
+    time means that day's run may never have fired at all. Rather than
+    waiting for tomorrow's occurrence, check on every startup -- which for
+    a personal app that gets restarted often is itself a frequent, reliable
+    opportunity to catch up -- and run immediately if it's been long enough
+    since the last run and there's actually new text to card."""
+    import time as _time
+
+    notes = store.get_daily_notes()
+    if notes.last_run_at is not None and (_time.time() - notes.last_run_at) < _CATCH_UP_THRESHOLD_SECONDS:
+        return
+    if not notes.text[notes.processed_length :].strip():
+        return  # nothing new to card, no point running
+    process_daily_notes()
+
+
 def process_daily_notes() -> List[CardDraft]:
     """Cards only the text appended to the Daily Notes page since the last
     run (tracked via a character-offset checkpoint), so re-running never
