@@ -191,14 +191,27 @@ class Store:
             return self._project.daily_notes
 
     def mark_daily_notes_processed(
-        self, processed_length: int, card_count: int, error: Optional[str] = None
+        self,
+        processed_length: int,
+        card_count: int,
+        error: Optional[str] = None,
+        questions: Optional[List[str]] = None,
     ) -> DailyNotes:
         with self._lock:
             notes = self._project.daily_notes
-            notes.processed_length = processed_length
+            # Drop whatever's already been turned into cards instead of
+            # leaving it sitting in the box forever -- it's confusing to see
+            # the same text still there after a run, and the full history
+            # isn't needed once it's been carded. Whatever's left (nothing,
+            # normally, unless new text was typed mid-run) becomes the new
+            # unprocessed content, so the checkpoint resets to 0 for it.
+            notes.text = notes.text[processed_length:]
+            notes.processed_length = 0
             notes.last_run_at = time.time()
             notes.last_run_card_count = card_count
             notes.last_run_error = error
+            if questions is not None:
+                notes.last_run_questions = questions
             self._save()
             return notes
 

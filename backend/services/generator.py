@@ -370,18 +370,28 @@ def process_daily_notes() -> List[CardDraft]:
         store.mark_daily_notes_processed(checkpoint, 0)
         return []
 
+    note_lines = [line.strip() for line in new_content.splitlines() if line.strip()]
+    line_count = len(note_lines) or 1
+
     try:
         raw_cards = claude_client.generate_cards(
             context_text=f"== Daily notes (new since last run) ==\n{new_content}",
             card_type=CardType.basic,
             subject_hint=None,
             instructions=(
-                "These are informal notes jotted down throughout the day, possibly "
-                "on unrelated topics. Pull out the concrete, learnable facts and make "
-                "each one its own card; skip anything too vague or personal to quiz."
+                "These are informal notes jotted down throughout the day, one line per "
+                f"distinct note ({line_count} line(s) of new content below), possibly on "
+                "unrelated topics. Produce ONE card per line as the default -- the total "
+                "card count should track the number of lines, not exceed it. Only make an "
+                "exception (two cards from a single line) if that line genuinely contains "
+                "two separate, independently-testable critical facts, and in that case "
+                "skip a card for a less noteworthy line elsewhere so the total stays at or "
+                "under the line count. Skip a line entirely only if it's too vague or "
+                "personal to quiz."
             ),
-            max_cards=25,
-            auto_count=False,
+            max_cards=line_count,
+            auto_count=True,
+            auto_count_cap=line_count,
         )
     except Exception as exc:  # noqa: BLE001 - record failure, don't crash the scheduler
         store.mark_daily_notes_processed(notes.processed_length, 0, error=str(exc))
@@ -406,6 +416,6 @@ def process_daily_notes() -> List[CardDraft]:
         )
 
     store.add_cards(cards)
-    store.mark_daily_notes_processed(checkpoint, len(cards))
+    store.mark_daily_notes_processed(checkpoint, len(cards), questions=[c.question for c in cards])
     push_pending_daily_notes_cards()
     return cards

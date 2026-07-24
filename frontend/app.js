@@ -9,7 +9,7 @@ const state = {
   ankiConnectAvailable: false,
   dailyNotes: {
     text: "", processed_length: 0, last_run_at: null, last_run_card_count: 0, last_run_error: null,
-    last_push_at: null, last_push_count: 0, last_push_error: null,
+    last_run_questions: [], last_push_at: null, last_push_count: 0, last_push_error: null,
   },
   dailyNotesCardTime: "23:59",
 };
@@ -488,7 +488,15 @@ function renderDailyNotes() {
       parts.push(`Pushed ${state.dailyNotes.last_push_count} card${state.dailyNotes.last_push_count === 1 ? "" : "s"} to Anki ${relativeTime(state.dailyNotes.last_push_at)}.`);
     }
   }
-  runStatus.innerHTML = parts.join(" ");
+
+  let questionsHtml = "";
+  if (state.dailyNotes.last_run_questions.length > 0) {
+    questionsHtml =
+      `<ul class="daily-notes-preview">` +
+      state.dailyNotes.last_run_questions.map((q) => `<li>${q}</li>`).join("") +
+      `</ul>`;
+  }
+  runStatus.innerHTML = `<p>${parts.join(" ")}</p>${questionsHtml}`;
 }
 
 async function saveDailyNotes(text) {
