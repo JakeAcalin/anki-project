@@ -674,6 +674,10 @@ function wireEvents() {
       );
     } catch (err) {
       showToast(err.message, true);
+      // The failure was likely recorded server-side (last_run_error) --
+      // refresh so it shows persistently in the status line below instead
+      // of only in this toast, which disappears in a few seconds.
+      await loadProject();
     } finally {
       btn.disabled = false;
       btn.textContent = "▶ Run Now";
