@@ -201,7 +201,7 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 18px;
-  padding: calc(14px + env(safe-area-inset-top)) 24px 14px;
+  padding: max(14px, calc(14px + env(safe-area-inset-top))) 24px 14px;
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
