@@ -98,9 +98,19 @@ Unlike card generation, reference mode is told to *preserve* detail rather
 than distill it — numbers, doses, caveats and step-by-step procedures are
 kept, organized into headed sections with bullet or numbered lists.
 
-The Library shows both kinds together, filterable by Notes / Cards: the
-reference page reads as the article, with any flashcards on the same topic
-listed under it.
+## The Library
+
+The Library is a wiki, not a card list. A *topic* is a page, and everything
+tagged under it — reference pages and flashcards alike — is content on that
+page, so a topic keeps growing as you add cards to it.
+
+Navigation is a column drill-down (Library → Anesthesia → Cardiology …),
+one column per level, so you can see where you are and step sideways
+without losing your place. A topic with subtopics but no content of its own
+is an index; once it has content it becomes an article with a breadcrumb
+and collapsible sections — Summary, the reference note's own sections, Key
+facts (its flashcards, read as prose rather than Q&A), and links out to its
+subtopics.
 
 ## Daily Notes
 

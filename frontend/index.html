@@ -132,20 +132,11 @@
 <main id="libraryView" class="library-layout hidden">
   <aside class="col library-sidebar">
     <h2>📚 Topics</h2>
-    <input id="librarySearch" type="text" placeholder="Search notes, questions, answers, tags…" />
-    <div id="libraryKindFilter" class="segmented library-kind-filter">
-      <button data-kind="all" class="active">All</button>
-      <button data-kind="reference">📖 Notes</button>
-      <button data-kind="cards">🎴 Cards</button>
-    </div>
-    <div id="topicTree" class="topic-tree"></div>
+    <input id="librarySearch" type="text" placeholder="Search this library…" />
+    <button id="libraryChangeDeckBtn" class="secondary-btn full-width" title="Change the Anki deck for every card under the topic you're viewing">✏️ Change deck for this topic</button>
     <button id="syncCheckBtn" class="secondary-btn full-width" title="Reconcile with Anki: un-archive cards deleted there, and pull in any edits made directly in Anki">🔄 Sync with Anki</button>
   </aside>
   <section class="col library-main">
-    <div class="cards-header">
-      <h2 id="libraryHeading">All topics</h2>
-      <button id="libraryChangeDeckBtn" class="link-btn">✏️ Change deck</button>
-    </div>
     <div id="libraryArticles" class="library-articles"></div>
   </section>
 </main>

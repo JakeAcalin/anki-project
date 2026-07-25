@@ -144,7 +144,11 @@ REFERENCE_TOOL = {
                             "items": {"type": "string"},
                             "description": (
                                 "Plain-text bullet points for this section (no HTML, no "
-                                "leading bullet characters). Wrap the single most "
+                                "leading bullet characters). Where a point has a natural "
+                                "label, lead with it followed by a colon -- 'Definition: "
+                                "...', 'Calculation: ...', 'Normal range: ...', 'Causes: "
+                                "...' -- so the page can be skimmed by its labels; the "
+                                "label is bolded automatically. Wrap the single most "
                                 "important phrase in a point with ==double equals== to "
                                 "highlight it; use at most one per point and leave a "
                                 "point unmarked if nothing stands out. Start a point "

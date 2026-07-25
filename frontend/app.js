@@ -420,122 +420,16 @@ function escapeHtml(str) {
 
 // ---------- Library view ----------
 
-function buildTagTree(cards) {
-  const root = {};
-  for (const c of cards) {
-    for (const tag of c.tags) {
-      const parts = tag.split("::").map((p) => p.trim()).filter(Boolean);
-      let node = root;
-      let path = [];
-      for (const part of parts) {
-        path.push(part);
-        if (!node[part]) node[part] = { children: {}, path: path.join("::") };
-        node = node[part].children;
-      }
-    }
-  }
-  return root;
-}
-
 function cardsUnderPath(cards, path) {
   if (!path) return cards;
   return cards.filter((c) => c.tags.some((t) => t === path || t.startsWith(path + "::")));
-}
-
-function renderTopicTree(node, cards) {
-  const keys = Object.keys(node).sort((a, b) => a.localeCompare(b));
-  if (keys.length === 0) return "";
-  return (
-    '<ul class="topic-tree-list">' +
-    keys
-      .map((key) => {
-        const entry = node[key];
-        const count = cardsUnderPath(cards, entry.path).length;
-        const active = entry.path === libraryState.selectedPath ? "active" : "";
-        const childHtml = renderTopicTree(entry.children, cards);
-        return `
-        <li>
-          <button class="topic-node ${active}" data-path="${escapeHtml(entry.path)}">
-            <span class="topic-name">${escapeHtml(key)}</span>
-            <span class="topic-count">${count}</span>
-          </button>
-          ${childHtml}
-        </li>`;
-      })
-      .join("") +
-    "</ul>"
-  );
-}
-
-function renderReferenceArticle(n) {
-  const images = n.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
-  const tagChips = n.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
-  return `
-  <article class="wiki-card wiki-reference" data-ref-id="${escapeHtml(n.id)}">
-    <div class="wiki-kind-row">
-      <span class="card-type-pill reference-pill">📖 Reference</span>
-      <button class="icon-btn" data-action="delete-reference">Delete</button>
-    </div>
-    <h3 class="wiki-title">${escapeHtml(n.title)}</h3>
-    ${n.summary ? `<p class="wiki-summary">${escapeHtml(n.summary)}</p>` : ""}
-    ${n.body ? `<div class="wiki-body">${n.body}</div>` : ""}
-    ${images ? `<div class="card-images">${images}</div>` : ""}
-    <div class="wiki-meta">${tagChips}</div>
-  </article>`;
-}
-
-function renderCardArticle(c) {
-  const isCloze = c.card_type === "cloze";
-  const isSequence = c.card_type === "sequence";
-  const heading = isSequence
-    ? escapeHtml(c.sequence_prompt || "")
-    : isCloze
-    ? renderClozePreview(c.cloze_text)
-    : c.question;
-  const answerBlock = isSequence
-    ? renderSequencePreview(c.sequence_items)
-    : isCloze
-    ? ""
-    : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
-  const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
-  const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
-  return `
-  <article class="wiki-card">
-    <h3 class="wiki-question">${heading}</h3>
-    ${answerBlock}
-    ${c.explanation ? `<div class="wiki-explanation">${c.explanation}</div>` : ""}
-    ${images ? `<div class="card-images">${images}</div>` : ""}
-    <div class="wiki-meta">
-      <span class="card-type-pill">${isSequence ? "List" : isCloze ? "Cloze" : "Basic"}</span>
-      ${tagChips}
-      <span class="wiki-deck">Deck: ${escapeHtml(c.deck)}</span>
-    </div>
-  </article>`;
-}
-
-function renderLibraryArticles(notes, cards) {
-  if (notes.length === 0 && cards.length === 0) {
-    return `<div class="empty-state">Nothing here yet.</div>`;
-  }
-  // Reference pages first: they're the "read about this topic" content, so
-  // they read as the article and the cards below as its drill questions.
-  const parts = [];
-  if (notes.length > 0) {
-    parts.push(notes.map(renderReferenceArticle).join(""));
-  }
-  if (cards.length > 0) {
-    if (notes.length > 0) {
-      parts.push(`<h3 class="library-section-heading">Flashcards on this topic (${cards.length})</h3>`);
-    }
-    parts.push(cards.map(renderCardArticle).join(""));
-  }
-  return parts.join("");
 }
 
 function matchesLibraryQuery(item, query) {
   const haystack = [
     item.question, item.answer, item.cloze_text, item.explanation,
     item.title, item.summary, item.body,
+    (item.sequence_items || []).join(" "), item.sequence_prompt,
     (item.tags || []).join(" "),
   ]
     .filter(Boolean)
@@ -544,42 +438,314 @@ function matchesLibraryQuery(item, query) {
   return haystack.includes(query);
 }
 
-function getVisibleLibraryCards() {
-  if (libraryState.kind === "reference") return [];
-  let cards = cardsUnderPath(state.cards, libraryState.selectedPath);
-  const query = libraryState.search.trim().toLowerCase();
-  if (query) cards = cards.filter((c) => matchesLibraryQuery(c, query));
-  return cards;
+// ---------- topic pages ----------
+//
+// The Library is a wiki, not a card list: a topic is a *page*, and every
+// card or reference note tagged under it is content on that page. Deeper
+// topics become links out to their own pages rather than being flattened
+// into this one.
+
+function allLibraryItems() {
+  return [...state.referenceNotes, ...state.cards];
 }
 
-function getVisibleReferenceNotes() {
-  if (libraryState.kind === "cards") return [];
-  let notes = cardsUnderPath(state.referenceNotes, libraryState.selectedPath);
-  const query = libraryState.search.trim().toLowerCase();
-  if (query) notes = notes.filter((n) => matchesLibraryQuery(n, query));
-  return notes;
+/** Items whose tag sits exactly at `path` -- this page's own content,
+ *  excluding anything belonging to a deeper subtopic page. */
+function itemsExactlyAt(items, path) {
+  if (!path) return items.filter((i) => (i.tags || []).length === 0);
+  return items.filter((i) => (i.tags || []).some((t) => t === path));
+}
+
+/** Direct child topic names under `path`, with a recursive item count. */
+function childTopics(items, path) {
+  const prefix = path ? path + "::" : "";
+  const names = new Set();
+  for (const item of items) {
+    for (const tag of item.tags || []) {
+      if (path && !tag.startsWith(prefix)) continue;
+      const rest = path ? tag.slice(prefix.length) : tag;
+      const head = rest.split("::")[0].trim();
+      if (head) names.add(head);
+    }
+  }
+  return [...names].sort((a, b) => a.localeCompare(b)).map((name) => {
+    const childPath = prefix + name;
+    const all = cardsUnderPath(items, childPath);
+    return {
+      name,
+      path: childPath,
+      total: all.length,
+      notes: all.filter((i) => i.body !== undefined).length,
+      cards: all.filter((i) => i.body === undefined).length,
+      subtopics: childTopicNames(items, childPath).length,
+    };
+  });
+}
+
+function childTopicNames(items, path) {
+  const prefix = path + "::";
+  const names = new Set();
+  for (const item of items) {
+    for (const tag of item.tags || []) {
+      if (!tag.startsWith(prefix)) continue;
+      const head = tag.slice(prefix.length).split("::")[0].trim();
+      if (head) names.add(head);
+    }
+  }
+  return [...names];
+}
+
+function renderBreadcrumb(path) {
+  const crumbs = [`<button class="crumb" data-path="">Library</button>`];
+  if (path) {
+    const parts = path.split("::");
+    parts.forEach((part, i) => {
+      const sub = parts.slice(0, i + 1).join("::");
+      const isLast = i === parts.length - 1;
+      crumbs.push(
+        isLast
+          ? `<span class="crumb current">${escapeHtml(part)}</span>`
+          : `<button class="crumb" data-path="${escapeHtml(sub)}">${escapeHtml(part)}</button>`
+      );
+    });
+  }
+  return `<nav class="wiki-breadcrumb">${crumbs.join('<span class="crumb-sep">›</span>')}</nav>`;
+}
+
+/** AMBOSS-style drill-down: one column per level of the path you've walked,
+ *  each a plain list of child topics, so you can see where you are and step
+ *  back sideways without losing context. */
+function renderColumnBrowser(path) {
+  const items = allLibraryItems();
+  const levels = [];
+  levels.push({ title: "Library", parent: null, children: childTopics(items, null) });
+  if (path) {
+    const parts = path.split("::");
+    for (let i = 0; i < parts.length; i++) {
+      const sub = parts.slice(0, i + 1).join("::");
+      const kids = childTopics(items, sub);
+      if (kids.length === 0) break;
+      levels.push({ title: parts[i], parent: sub, children: kids });
+    }
+  }
+
+  const selectedAtLevel = (level) => {
+    if (!path) return null;
+    const parts = path.split("::");
+    const depth = level.parent ? level.parent.split("::").length : 0;
+    return parts.length > depth ? parts.slice(0, depth + 1).join("::") : null;
+  };
+
+  return `
+    <div class="col-browser">
+      ${levels
+        .map((level) => {
+          const sel = selectedAtLevel(level);
+          return `
+        <div class="col-browser-col">
+          <h3 class="col-browser-title">${escapeHtml(level.title)}</h3>
+          <div class="col-browser-list">
+            ${level.children
+              .map((c) => {
+                const active = c.path === sel ? "active" : "";
+                const hasKids = c.subtopics > 0;
+                return `
+              <button class="col-row ${active}" data-path="${escapeHtml(c.path)}">
+                <span class="col-row-icon">${hasKids ? "🗂️" : "📄"}</span>
+                <span class="col-row-name">${escapeHtml(c.name)}</span>
+                <span class="col-row-count">${c.total}</span>
+                ${hasKids ? `<span class="col-row-chevron">›</span>` : ""}
+              </button>`;
+              })
+              .join("")}
+          </div>
+        </div>`;
+        })
+        .join("")}
+    </div>`;
+}
+
+/** Splits reference-note body HTML on its <h4> headings so each becomes its
+ *  own collapsible section, matching how a wiki article reads. */
+function splitBodyIntoSections(bodyHtml) {
+  const holder = document.createElement("div");
+  holder.innerHTML = bodyHtml || "";
+  const sections = [];
+  let current = null;
+  for (const node of Array.from(holder.childNodes)) {
+    if (node.nodeName === "H4") {
+      if (current) sections.push(current);
+      current = { title: node.textContent, html: "" };
+    } else {
+      if (!current) current = { title: "Overview", html: "" };
+      current.html += node.outerHTML || node.textContent || "";
+    }
+  }
+  if (current) sections.push(current);
+  return sections;
+}
+
+function renderAccordion(sections) {
+  return sections
+    .map(
+      (s, i) => `
+    <section class="acc ${s.open === false ? "" : "open"}">
+      <button class="acc-head" type="button">
+        <span class="acc-title">${escapeHtml(s.title)}</span>
+        <span class="acc-chevron">⌄</span>
+      </button>
+      <div class="acc-body">${s.html}</div>
+    </section>`
+    )
+    .join("");
+}
+
+/** A cloze sentence read as prose: blanks filled in and emphasized, so the
+ *  page reads like an article instead of a fill-in-the-blank exercise. */
+function clozeAsProse(text) {
+  const escaped = escapeHtml(text || "");
+  return escaped.replace(/\{\{c\d+::(.*?)(?:::.*?)?\}\}/g, (_m, inner) => `<strong>${inner}</strong>`);
+}
+
+function renderFact(item) {
+  if (item.card_type === "sequence") {
+    return `
+      <div class="wiki-fact">
+        <div class="wiki-fact-lead">${escapeHtml(item.sequence_prompt || "")}</div>
+        ${renderSequencePreview(item.sequence_items)}
+        ${item.explanation ? `<div class="wiki-fact-detail">${item.explanation}</div>` : ""}
+      </div>`;
+  }
+  if (item.card_type === "cloze") {
+    return `
+      <div class="wiki-fact">
+        <div class="wiki-fact-lead">${clozeAsProse(item.cloze_text)}</div>
+        ${item.explanation ? `<div class="wiki-fact-detail">${item.explanation}</div>` : ""}
+      </div>`;
+  }
+  return `
+    <div class="wiki-fact">
+      <div class="wiki-fact-lead"><strong>${escapeHtml(item.answer)}</strong></div>
+      <div class="wiki-fact-q">${item.question}</div>
+      ${item.explanation ? `<div class="wiki-fact-detail">${item.explanation}</div>` : ""}
+    </div>`;
+}
+
+function renderTopicPage(path) {
+  const items = allLibraryItems();
+  const children = childTopics(items, path);
+  const own = itemsExactlyAt(items, path);
+  const ownNotes = own.filter((i) => i.body !== undefined);
+  const ownCards = own.filter((i) => i.body === undefined);
+
+  // A topic with subtopics but no content of its own is an index page --
+  // browse it as columns. Once there's content here, it's an article.
+  if (children.length > 0 && own.length === 0) {
+    return renderBreadcrumb(path) + renderColumnBrowser(path);
+  }
+
+  const title = path ? path.split("::").pop() : "Library";
+  const totalUnder = path ? cardsUnderPath(items, path).length : items.length;
+
+  const parts = [renderBreadcrumb(path)];
+  parts.push(`<h1 class="wiki-page-title">${escapeHtml(title)}</h1>`);
+  parts.push(
+    `<p class="wiki-page-meta">${totalUnder} item${totalUnder === 1 ? "" : "s"}${
+      children.length ? ` · ${children.length} subtopic${children.length === 1 ? "" : "s"}` : ""
+    }</p>`
+  );
+
+  const sections = [];
+
+  for (const n of ownNotes) {
+    if (n.summary) {
+      sections.push({
+        title: "Summary",
+        html: `<div class="wiki-summary-body" data-ref-id="${escapeHtml(n.id)}">
+                 <p>${escapeHtml(n.summary)}</p>
+                 <button class="icon-btn" data-action="delete-reference">Delete this note</button>
+               </div>`,
+      });
+    }
+    for (const s of splitBodyIntoSections(n.body)) {
+      sections.push({ title: s.title, html: `<div class="wiki-body">${s.html}</div>` });
+    }
+    if (n.media_ids.length) {
+      sections.push({
+        title: "Images",
+        html: `<div class="card-images">${n.media_ids
+          .map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`)
+          .join("")}</div>`,
+      });
+    }
+  }
+
+  if (ownCards.length > 0) {
+    sections.push({
+      title: `Key facts (${ownCards.length})`,
+      html: `<div class="wiki-facts">${ownCards.map(renderFact).join("")}</div>`,
+    });
+  }
+
+  if (children.length > 0) {
+    sections.push({
+      title: `Subtopics (${children.length})`,
+      html: `<div class="col-browser-list inline">${children
+        .map(
+          (c) => `
+          <button class="col-row" data-path="${escapeHtml(c.path)}">
+            <span class="col-row-icon">${c.subtopics ? "🗂️" : "📄"}</span>
+            <span class="col-row-name">${escapeHtml(c.name)}</span>
+            <span class="col-row-count">${c.total}</span>
+            <span class="col-row-chevron">›</span>
+          </button>`
+        )
+        .join("")}</div>`,
+    });
+  }
+
+  if (sections.length === 0) {
+    parts.push(`<div class="empty-state">Nothing filed under this topic yet.</div>`);
+  } else {
+    parts.push(renderAccordion(sections));
+  }
+  return parts.join("");
+}
+
+function renderSearchResults(query) {
+  const items = allLibraryItems().filter((i) => matchesLibraryQuery(i, query));
+  const parts = [
+    renderBreadcrumb(null),
+    `<h1 class="wiki-page-title">Search</h1>`,
+    `<p class="wiki-page-meta">${items.length} result${items.length === 1 ? "" : "s"} for “${escapeHtml(query)}”</p>`,
+  ];
+  if (items.length === 0) {
+    parts.push(`<div class="empty-state">No matches.</div>`);
+    return parts.join("");
+  }
+  parts.push(
+    `<div class="wiki-facts">` +
+      items
+        .map((i) => {
+          const topic = (i.tags || [])[0] || "";
+          const lead = i.body !== undefined ? escapeHtml(i.title) : null;
+          return `
+        <div class="wiki-fact search-hit">
+          ${topic ? `<button class="search-hit-topic" data-path="${escapeHtml(topic)}">${escapeHtml(topic)}</button>` : ""}
+          ${lead !== null ? `<div class="wiki-fact-lead">📖 ${lead}</div>` : renderFact(i)}
+        </div>`;
+        })
+        .join("") +
+      `</div>`
+  );
+  return parts.join("");
 }
 
 function renderLibrary() {
-  // The topic tree spans both content kinds, so a topic that only has
-  // reference pages still shows up (and vice versa).
-  const treeItems = [...state.referenceNotes, ...state.cards];
-  const tree = buildTagTree(treeItems);
-  const allActive = !libraryState.selectedPath ? "active" : "";
-  document.getElementById("topicTree").innerHTML =
-    `<button class="topic-node topic-node-all ${allActive}" data-path="">
-       <span class="topic-name">All topics</span>
-       <span class="topic-count">${treeItems.length}</span>
-     </button>` + renderTopicTree(tree, treeItems);
-
-  document.querySelectorAll("#libraryKindFilter button").forEach((b) => {
-    b.classList.toggle("active", b.dataset.kind === libraryState.kind);
-  });
-
-  const notes = getVisibleReferenceNotes();
-  const cards = getVisibleLibraryCards();
-  document.getElementById("libraryHeading").textContent = libraryState.selectedPath || "All topics";
-  document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(notes, cards);
+  const query = libraryState.search.trim().toLowerCase();
+  document.getElementById("libraryArticles").innerHTML = query
+    ? renderSearchResults(query)
+    : renderTopicPage(libraryState.selectedPath);
 }
 
 // Re-roots each card's own tags under `newDeck` (using that card's current
@@ -752,13 +918,6 @@ function wireEvents() {
     });
   });
 
-  document.getElementById("topicTree").addEventListener("click", (e) => {
-    const btn = e.target.closest(".topic-node");
-    if (!btn) return;
-    libraryState.selectedPath = btn.dataset.path || null;
-    renderLibrary();
-  });
-
   document.getElementById("librarySearch").addEventListener("input", (e) => {
     libraryState.search = e.target.value;
     renderLibrary();
@@ -791,10 +950,12 @@ function wireEvents() {
   });
 
   document.getElementById("libraryChangeDeckBtn").addEventListener("click", async () => {
-    const visible = getVisibleLibraryCards();
-    if (visible.length === 0) return showToast("No cards to update.", true);
+    // Every card under the topic currently being viewed, subtopics included.
+    const visible = cardsUnderPath(state.cards, libraryState.selectedPath);
+    if (visible.length === 0) return showToast("No cards under this topic.", true);
+    const where = libraryState.selectedPath || "the whole library";
     const input = prompt(
-      `New deck for these ${visible.length} card${visible.length === 1 ? "" : "s"}:`,
+      `New deck for the ${visible.length} card${visible.length === 1 ? "" : "s"} under ${where}:`,
       visible[0].deck || state.deckName
     );
     if (input === null) return;
@@ -890,14 +1051,24 @@ function wireEvents() {
     renderOutputMode();
   });
 
-  document.getElementById("libraryKindFilter").addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-kind]");
-    if (!btn) return;
-    libraryState.kind = btn.dataset.kind;
-    renderLibrary();
-  });
-
   document.getElementById("libraryArticles").addEventListener("click", async (e) => {
+    const accHead = e.target.closest(".acc-head");
+    if (accHead) {
+      accHead.parentElement.classList.toggle("open");
+      return;
+    }
+
+    // In-page wiki navigation: breadcrumbs, subtopic links, search hits.
+    const nav = e.target.closest("[data-path]");
+    if (nav) {
+      libraryState.selectedPath = nav.dataset.path || null;
+      libraryState.search = "";
+      document.getElementById("librarySearch").value = "";
+      renderLibrary();
+      document.getElementById("libraryArticles").scrollIntoView({ block: "start" });
+      return;
+    }
+
     if (e.target.dataset.action !== "delete-reference") return;
     const article = e.target.closest("[data-ref-id]");
     if (!article) return;

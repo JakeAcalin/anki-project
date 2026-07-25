@@ -122,6 +122,10 @@ def _combine_description_and_highlights(description: str, highlights: List[str])
 
 
 _HIGHLIGHT_RE = re.compile(r"==(.+?)==")
+# "Definition:", "Normal range:" -- a short label at the very start of a
+# bullet, bolded so a reference page can be skimmed by its labels. Capped at
+# a few words so a whole sentence containing a colon isn't swallowed.
+_LEAD_LABEL_RE = re.compile(r"^([A-Z][^:<>]{0,40}?:)(\s)")
 _BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
 _UNDERLINE_RE = re.compile(r"__(.+?)__")
 _ITALIC_RE = re.compile(r"\*(.+?)\*")
@@ -185,6 +189,8 @@ def _render_reference_body(sections: List[dict]) -> str:
             if nested:
                 text = text[2:].strip()
             escaped = _HIGHLIGHT_RE.sub(r"<mark>\1</mark>", html.escape(text))
+            # Bold a short leading "Label:" so pages skim by their labels.
+            escaped = _LEAD_LABEL_RE.sub(r"<b>\1</b>\2", escaped, count=1)
             items.append((nested, escaped))
 
         if not items:
