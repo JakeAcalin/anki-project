@@ -106,11 +106,19 @@ page, so a topic keeps growing as you add cards to it.
 
 Navigation is a column drill-down (Library → Anesthesia → Cardiology …),
 one column per level, so you can see where you are and step sideways
-without losing your place. A topic with subtopics but no content of its own
-is an index; once it has content it becomes an article with a breadcrumb
-and collapsible sections — Summary, the reference note's own sections, Key
-facts (its flashcards, read as prose rather than Q&A), and links out to its
-subtopics.
+without losing your place.
+
+**Leaf topics are sections, not pages.** A topic only gets its own page if
+it has subtopics under it; the deepest level rolls *up* into its parent as
+a named, collapsible section. So `Airway::LMA` isn't a thin one-item page —
+"Airway" is the article and "LMA" is a heading inside it, the way a wiki
+article has sections. Clicking a leaf anywhere jumps to the parent page
+with that section opened and highlighted.
+
+Flashcards read as prose on these pages: the question leads at full size
+and the answer follows as its emphasized resolution (so you can see what's
+being claimed before reading the detail), with the explanation bullets
+underneath.
 
 **Cross-references.** Where a page mentions another topic that exists in the
 library, that mention becomes a link to its page (first mention per

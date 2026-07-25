@@ -19,11 +19,21 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">🗂️ Anki Card Media Generator</div>
-  <div class="deck-name-field">
-    <label>Deck</label>
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6.5" y="3.5" width="13" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+        <path d="M4.5 6.5v13a2.5 2.5 0 0 0 2.5 2.5h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".5"/>
+        <path d="M10 9.5h6M10 13h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <span class="brand-name">Anki<span class="brand-name-accent">Forge</span></span>
+  </div>
+  <div class="deck-name-field" id="deckNameField">
+    <span class="deck-field-label">Deck</span>
+    <div class="deck-display" id="deckDisplay" role="button" tabindex="0" title="Click to change deck"></div>
     <div class="deck-autocomplete">
-      <input id="deckNameInput" type="text" placeholder="e.g. Biology::Cell Biology" autocomplete="off" />
+      <input id="deckNameInput" type="text" placeholder="Choose a deck…" autocomplete="off" spellcheck="false" />
       <div class="deck-suggest-list hidden"></div>
     </div>
   </div>

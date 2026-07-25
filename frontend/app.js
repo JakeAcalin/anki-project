@@ -21,6 +21,7 @@ const libraryState = {
   selectedPath: null, // null = "All topics"
   search: "",
   kind: "all", // all | reference | cards
+  focusSection: null, // section title to auto-open/scroll to after navigating
 };
 
 let pollHandle = null;
@@ -190,6 +191,38 @@ const CARD_TYPE_HINTS = {
     "A whole list on ONE card — everything hidden, revealed one item at a time. For mnemonics, scored criteria, and protocol steps.",
 };
 
+/** Shows the tail of a deck path -- the part that identifies it -- with the
+ *  parent levels dimmed, rather than clipping the middle of a long path. */
+function renderDeckDisplay() {
+  const el = document.getElementById("deckDisplay");
+  const full = state.deckName || "";
+  if (!full) {
+    el.innerHTML = `<span class="deck-display-dim">Choose a deck…</span>`;
+    el.title = "Click to change deck";
+    return;
+  }
+  const parts = full.split("::");
+  const leaf = parts[parts.length - 1];
+  const hasParents = parts.length > 1;
+  el.innerHTML = hasParents
+    ? `<span class="deck-display-dim">…::</span>${escapeHtml(leaf)}`
+    : escapeHtml(leaf);
+  el.title = full;
+}
+
+function startEditingDeck() {
+  const field = document.getElementById("deckNameField");
+  field.classList.add("editing");
+  const input = document.getElementById("deckNameInput");
+  input.focus();
+  input.select();
+}
+
+function stopEditingDeck() {
+  document.getElementById("deckNameField").classList.remove("editing");
+  renderDeckDisplay();
+}
+
 function renderCardTypeHint() {
   document.getElementById("cardTypeHint").textContent = CARD_TYPE_HINTS[state.cardType] || "";
 }
@@ -238,6 +271,7 @@ function manageServerPolling() {
 
 function renderAll() {
   document.getElementById("deckNameInput").value = state.deckName;
+  renderDeckDisplay();
   const statusEl = document.getElementById("apiStatus");
   if (state.claudeConfigured) {
     statusEl.textContent = "Claude API: connected";
@@ -587,16 +621,18 @@ function splitBodyIntoSections(bodyHtml) {
 
 function renderAccordion(sections) {
   return sections
-    .map(
-      (s, i) => `
-    <section class="acc ${s.open === false ? "" : "open"}">
+    .map((s) => {
+      const focused = libraryState.focusSection && s.title === libraryState.focusSection;
+      return `
+    <section class="acc ${s.open === false && !focused ? "" : "open"} ${focused ? "focused" : ""}"
+             ${s.sectionPath ? `data-section-path="${escapeHtml(s.sectionPath)}"` : ""}>
       <button class="acc-head" type="button">
         <span class="acc-title">${escapeHtml(s.title)}</span>
         <span class="acc-chevron">⌄</span>
       </button>
       <div class="acc-body">${s.html}</div>
-    </section>`
-    )
+    </section>`;
+    })
     .join("");
 }
 
@@ -705,10 +741,14 @@ function renderFact(item) {
         ${item.explanation ? `<div class="wiki-fact-detail">${item.explanation}</div>` : ""}
       </div>`;
   }
+  // The question is the point of the fact, so it leads; the answer follows
+  // as its emphasized resolution. (Leading with the bare answer and burying
+  // the question underneath read backwards -- you couldn't tell what was
+  // being claimed.)
   return `
     <div class="wiki-fact">
-      <div class="wiki-fact-lead"><strong>${escapeHtml(item.answer)}</strong></div>
-      <div class="wiki-fact-q">${item.question}</div>
+      <div class="wiki-fact-lead">${item.question}</div>
+      <div class="wiki-fact-answer">${escapeHtml(item.answer)}</div>
       ${item.explanation ? `<div class="wiki-fact-detail">${item.explanation}</div>` : ""}
     </div>`;
 }
@@ -720,9 +760,15 @@ function renderTopicPage(path) {
   const ownNotes = own.filter((i) => i.body !== undefined);
   const ownCards = own.filter((i) => i.body === undefined);
 
-  // A topic with subtopics but no content of its own is an index page --
-  // browse it as columns. Once there's content here, it's an article.
-  if (children.length > 0 && own.length === 0) {
+  // Leaf children roll UP into this page as sections rather than becoming
+  // their own thin pages -- "Airway" is the article, "LMA" is a heading in
+  // it, the way a wiki article has sections. A child that has children of
+  // its own still gets a page and stays a link.
+  const leafChildren = children.filter((c) => c.subtopics === 0);
+  const branchChildren = children.filter((c) => c.subtopics > 0);
+
+  // Nothing here and nothing rollable: pure index, browse it as columns.
+  if (branchChildren.length > 0 && own.length === 0 && leafChildren.length === 0) {
     return renderBreadcrumb(path) + renderColumnBrowser(path);
   }
 
@@ -733,7 +779,7 @@ function renderTopicPage(path) {
   parts.push(`<h1 class="wiki-page-title">${escapeHtml(title)}</h1>`);
   parts.push(
     `<p class="wiki-page-meta">${totalUnder} item${totalUnder === 1 ? "" : "s"}${
-      children.length ? ` · ${children.length} subtopic${children.length === 1 ? "" : "s"}` : ""
+      branchChildren.length ? ` · ${branchChildren.length} subtopic${branchChildren.length === 1 ? "" : "s"}` : ""
     }</p>`
   );
 
@@ -762,21 +808,39 @@ function renderTopicPage(path) {
     }
   }
 
+  // Content filed directly at this topic, with no subtopic name to head it.
   if (ownCards.length > 0) {
     sections.push({
-      title: `Key facts (${ownCards.length})`,
+      title: path ? "General" : "Uncategorized",
       html: `<div class="wiki-facts">${ownCards.map(renderFact).join("")}</div>`,
     });
   }
 
-  if (children.length > 0) {
+  // Each leaf subtopic becomes a named section here rather than its own page.
+  for (const child of leafChildren) {
+    const childItems = cardsUnderPath(items, child.path);
+    const childNotes = childItems.filter((i) => i.body !== undefined);
+    const childCards = childItems.filter((i) => i.body === undefined);
+    let html = "";
+    for (const n of childNotes) {
+      if (n.summary) html += `<p class="wiki-summary">${escapeHtml(n.summary)}</p>`;
+      if (n.body) html += `<div class="wiki-body">${n.body}</div>`;
+    }
+    if (childCards.length) {
+      html += `<div class="wiki-facts">${childCards.map(renderFact).join("")}</div>`;
+    }
+    sections.push({ title: child.name, html, sectionPath: child.path });
+  }
+
+  if (branchChildren.length > 0) {
     sections.push({
-      title: `Subtopics (${children.length})`,
-      html: `<div class="col-browser-list inline">${children
+      title: `Subtopics (${branchChildren.length})`,
+      isNav: true,
+      html: `<div class="col-browser-list inline">${branchChildren
         .map(
           (c) => `
           <button class="col-row" data-path="${escapeHtml(c.path)}">
-            <span class="col-row-icon">${c.subtopics ? "🗂️" : "📄"}</span>
+            <span class="col-row-icon">🗂️</span>
             <span class="col-row-name">${escapeHtml(c.name)}</span>
             <span class="col-row-count">${c.total}</span>
             <span class="col-row-chevron">›</span>
@@ -790,10 +854,9 @@ function renderTopicPage(path) {
     parts.push(`<div class="empty-state">Nothing filed under this topic yet.</div>`);
   } else {
     // Cross-link mentions of other topics, but only in the prose sections --
-    // the Subtopics list is already links, and re-linking it would nest
-    // buttons inside buttons.
+    // the nav list is already links, and re-linking it would nest buttons.
     const linked = sections.map((s) =>
-      s.title.startsWith("Subtopics") ? s : { ...s, html: linkifyTopics(s.html, path) }
+      s.isNav ? s : { ...s, html: linkifyTopics(s.html, path) }
     );
     parts.push(renderAccordion(linked));
   }
@@ -827,6 +890,35 @@ function renderSearchResults(query) {
       `</div>`
   );
   return parts.join("");
+}
+
+/** A leaf topic has no page of its own -- it lives as a section on its
+ *  parent's page -- so navigating to one opens the parent and focuses that
+ *  section instead of rendering a near-empty page for it. */
+function navigateToTopic(path) {
+  libraryState.focusSection = null;
+  if (path) {
+    const items = allLibraryItems();
+    const isLeaf = childTopicNames(items, path).length === 0;
+    const parts = path.split("::");
+    if (isLeaf && parts.length > 1) {
+      libraryState.selectedPath = parts.slice(0, -1).join("::");
+      libraryState.focusSection = parts[parts.length - 1];
+    } else {
+      libraryState.selectedPath = path;
+    }
+  } else {
+    libraryState.selectedPath = null;
+  }
+  libraryState.search = "";
+  document.getElementById("librarySearch").value = "";
+  renderLibrary();
+
+  const focused = document.querySelector(".acc.focused");
+  (focused || document.getElementById("libraryArticles")).scrollIntoView({
+    block: focused ? "center" : "start",
+    behavior: "smooth",
+  });
 }
 
 function renderLibrary() {
@@ -1138,11 +1230,29 @@ function wireEvents() {
   });
 
   document.getElementById("deckNameInput").addEventListener("change", async (e) => {
+    state.deckName = e.target.value;
     await api("/api/project/deck-name", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: e.target.value }),
     });
+    renderDeckDisplay();
+  });
+
+  const deckDisplay = document.getElementById("deckDisplay");
+  deckDisplay.addEventListener("click", startEditingDeck);
+  deckDisplay.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      startEditingDeck();
+    }
+  });
+  document.getElementById("deckNameInput").addEventListener("blur", () => {
+    // Let a click on an autocomplete suggestion land before collapsing.
+    setTimeout(stopEditingDeck, 180);
+  });
+  document.getElementById("deckNameInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === "Escape") e.target.blur();
   });
 
   document.getElementById("cardTypeToggle").addEventListener("click", (e) => {
@@ -1175,11 +1285,7 @@ function wireEvents() {
     // In-page wiki navigation: breadcrumbs, subtopic links, search hits.
     const nav = e.target.closest("[data-path]");
     if (nav) {
-      libraryState.selectedPath = nav.dataset.path || null;
-      libraryState.search = "";
-      document.getElementById("librarySearch").value = "";
-      renderLibrary();
-      document.getElementById("libraryArticles").scrollIntoView({ block: "start" });
+      navigateToTopic(nav.dataset.path || null);
       return;
     }
 
