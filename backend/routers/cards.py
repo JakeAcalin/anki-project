@@ -34,6 +34,17 @@ def list_tags():
     return store.all_tags()
 
 
+@router.post("/reorganize-topics")
+def reorganize_topics():
+    from ..services.claude_client import ClaudeNotConfigured
+    from ..services.generator import reorganize_topics as _reorganize
+
+    try:
+        return _reorganize()
+    except ClaudeNotConfigured as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 @router.post("")
 def create_card(card: CardDraft):
     store.add_cards([card])

@@ -183,11 +183,102 @@ REFERENCE_TOOL = {
 }
 
 
+RETAG_TOOL = {
+    "name": "emit_topic_mapping",
+    "description": "Propose a tidier hierarchy for an existing set of topic tags.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "mapping": {
+                "type": "array",
+                "description": (
+                    "One entry per tag that should MOVE. Omit tags that are already "
+                    "well-filed -- do not emit an entry whose 'to' equals its 'from'."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "from": {"type": "string", "description": "The existing tag, verbatim."},
+                        "to": {
+                            "type": "string",
+                            "description": (
+                                "Where it should live instead. Must keep the same first "
+                                "level (the deck root) as 'from', then insert a broad "
+                                "discipline before the specific concept."
+                            ),
+                        },
+                    },
+                    "required": ["from", "to"],
+                },
+            }
+        },
+        "required": ["mapping"],
+    },
+}
+
+
+def propose_tag_reorganization(tags: List[str]) -> List[Dict[str, str]]:
+    """Ask Claude to re-file a flat pile of topics under broader disciplines.
+    Returns only the moves; the caller applies them."""
+    client = _get_client()
+    prompt = "\n".join(
+        [
+            "Below is the full list of topic tags in a personal medical study "
+            "library. Many are specific concepts sitting at the top level as their "
+            "own one-item topic, which makes the library impossible to browse.",
+            "",
+            "Reorganize them into a clean two-or-three-level hierarchy:",
+            "- ALWAYS keep the first level (the deck name) exactly as it is.",
+            "- After that, insert a broad discipline that several topics can share "
+            "-- Pharmacology, Pulmonology, Cardiology, Neurology, Toxicology, "
+            "Airway, Pediatrics, Regional, Monitoring, Equipment, and so on.",
+            "- The specific concept stays as the last level.",
+            "- Prefer FEW disciplines that each hold several topics over many "
+            "disciplines holding one topic each. Group aggressively.",
+            "- Split CamelCase concept names into normal words "
+            "('CyanidePoisoning' -> 'Cyanide Poisoning').",
+            "- Leave a tag alone (omit it) if it's already sensibly filed.",
+            "",
+            "Example: 'MyDeck::Atelectasis' -> 'MyDeck::Pulmonology::Atelectasis'.",
+            "",
+            "TAGS:",
+            *[f"- {t}" for t in tags],
+        ]
+    )
+    message = client.messages.create(
+        model=config.CLAUDE_TEXT_MODEL,
+        max_tokens=8000,
+        tools=[RETAG_TOOL],
+        tool_choice={"type": "tool", "name": "emit_topic_mapping"},
+        messages=[{"role": "user", "content": prompt}],
+    )
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "emit_topic_mapping":
+            return block.input.get("mapping", [])
+    return []
+
+
+def _existing_topics_block(existing_tags: Optional[List[str]]) -> List[str]:
+    """Show Claude the tag vocabulary already in use so it files new material
+    under an existing discipline instead of coining a new top-level topic
+    every time -- the thing that fragments the library."""
+    if not existing_tags:
+        return []
+    return [
+        "",
+        "EXISTING TOPICS already in this library -- reuse these paths (or extend "
+        "them with a deeper level) wherever the new material fits, rather than "
+        "inventing a parallel category:",
+        *[f"- {t}" for t in sorted(existing_tags)[:200]],
+    ]
+
+
 def generate_reference_note(
     *,
     context_text: str,
     subject_hint: Optional[str],
     instructions: Optional[str],
+    existing_tags: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     client = _get_client()
 
@@ -214,6 +305,7 @@ def generate_reference_note(
     if instructions:
         prompt_parts.append(f"- Additional instructions from the user: {instructions}")
 
+    prompt_parts += _existing_topics_block(existing_tags)
     prompt_parts += ["", "SOURCE MATERIAL:", context_text]
 
     message = client.messages.create(
@@ -321,9 +413,16 @@ _SHARED_CARD_PROPERTIES = {
         "type": "array",
         "items": {"type": "string"},
         "description": (
-            "1-4 hierarchical tags using '::' to separate levels, e.g. "
-            "'Biology::CellBiology::Mitochondria'. Broad topic first, specific "
-            "concept last."
+            "1-3 hierarchical tags using '::' to separate levels. EVERY tag must "
+            "have AT LEAST TWO levels and must begin with a broad discipline that "
+            "many other topics could also live under -- Pharmacology, Pulmonology, "
+            "Cardiology, Neurology, Toxicology, Airway, Pediatrics, Regional, "
+            "Monitoring, and so on. The specific concept goes last, never first. "
+            "Good: 'Pulmonology::Atelectasis::Prevention'. Bad: 'Atelectasis' or "
+            "'CyanidePoisoning' -- a bare specific concept as its own top-level "
+            "topic fragments the library into dozens of one-item categories. "
+            "Prefer reusing a discipline from the EXISTING TOPICS list in the "
+            "prompt over inventing a new one."
         ),
     },
 }
@@ -371,6 +470,7 @@ def generate_cards(
     auto_count_cap: Optional[int] = None,
     has_truelearn_notes: bool = False,
     source_count: int = 0,
+    existing_tags: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
 
@@ -486,14 +586,18 @@ def generate_cards(
         )
 
     prompt_parts.append(
-        "- Assign hierarchical tags with '::' (e.g. Topic::Subtopic::Detail). Reuse the same "
-        "top-level tag across related cards so the deck organizes into a clean tree."
+        "- Assign hierarchical tags with '::'. Every tag needs at least two levels, "
+        "starting with a broad discipline (Pharmacology, Pulmonology, Cardiology, "
+        "Toxicology, Airway, ...) and ending with the specific concept -- never a "
+        "bare specific concept on its own, which turns the library into dozens of "
+        "one-item topics. Reuse the same discipline across related cards."
     )
     if subject_hint:
         prompt_parts.append(f"- Root all tags under the subject '{subject_hint}' where sensible.")
     if instructions:
         prompt_parts.append(f"- Additional instructions from the user: {instructions}")
 
+    prompt_parts += _existing_topics_block(existing_tags)
     prompt_parts += [
         "",
         "SOURCE MATERIAL:",

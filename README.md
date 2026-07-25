@@ -112,6 +112,21 @@ and collapsible sections — Summary, the reference note's own sections, Key
 facts (its flashcards, read as prose rather than Q&A), and links out to its
 subtopics.
 
+**Cross-references.** Where a page mentions another topic that exists in the
+library, that mention becomes a link to its page (first mention per
+paragraph, the way a wiki does it) — so a note about weight-based dosing
+that mentions succinylcholine links straight to the succinylcholine page.
+
+**Keeping the tree tidy.** Card generation is told to file everything under
+a broad discipline (`Pulmonology::Atelectasis`, not a bare `Atelectasis`),
+is shown the topics already in use so it reuses them instead of coining
+parallel categories, and anything that still arrives with only one level is
+parked under a visible `Unfiled` parent rather than becoming its own
+top-level topic. For a library that's already sprawled, **Tidy up topics**
+in the Library sidebar asks Claude to propose a hierarchy for the existing
+tags and re-files cards and notes accordingly; it only accepts moves that
+keep the deck root intact and don't flatten the path.
+
 ## Daily Notes
 
 A fourth tab for a different workflow: instead of uploading discrete

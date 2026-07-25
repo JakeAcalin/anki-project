@@ -167,6 +167,8 @@ class Store:
             tags = set()
             for c in self._project.cards:
                 tags.update(c.tags)
+            for n in self._project.reference_notes:
+                tags.update(n.tags)
             return sorted(tags)
 
     def set_deck_name(self, name: str) -> None:

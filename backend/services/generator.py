@@ -212,6 +212,24 @@ def _render_reference_body(sections: List[dict]) -> str:
     return "".join(out)
 
 
+_UNFILED_PARENT = "Unfiled"
+
+
+def _ensure_two_levels(tags: List[str]) -> List[str]:
+    """A bare single-level tag becomes its own top-level topic, which is what
+    turns the library into dozens of one-item categories. The prompt asks for
+    a discipline first, but that's a request -- park anything that arrives
+    flat under a visible 'Unfiled' parent so it's obviously in need of
+    re-filing instead of silently cluttering the top level."""
+    fixed = []
+    for t in tags:
+        t = t.strip().strip(":")
+        if not t:
+            continue
+        fixed.append(t if "::" in t else f"{_UNFILED_PARENT}::{t}")
+    return fixed
+
+
 def _apply_tag_root(tags: List[str], root: str) -> List[str]:
     """Prepend `root` to every tag so the deck name is always the shared
     parent in Anki's tag tree (e.g. root='Pharm' turns 'CardiacDrugs' into
@@ -326,6 +344,7 @@ def build_cards_from_sources(
         auto_count_cap=auto_count_cap,
         has_truelearn_notes=has_truelearn_notes,
         source_count=len(sources),
+        existing_tags=store.all_tags(),
     )
 
     cards = []
@@ -334,7 +353,7 @@ def build_cards_from_sources(
         common = dict(
             card_type=card_type,
             explanation=_render_explanation(raw.get("explanation_points", [])),
-            tags=_apply_tag_root(tags, deck),
+            tags=_apply_tag_root(_ensure_two_levels(tags), deck),
             deck=deck,
             source_ids=source_ids,
         )
@@ -380,6 +399,57 @@ def build_cards_from_sources(
     return cards
 
 
+def reorganize_topics() -> dict:
+    """Re-file the whole library's tags under broader disciplines. Applies to
+    cards and reference notes alike; deck values are untouched (this is about
+    the Library's topic tree, not which Anki deck a card lives in)."""
+    tags = store.all_tags()
+    if not tags:
+        return {"moved": 0, "mapping": []}
+
+    raw_mapping = claude_client.propose_tag_reorganization(tags)
+
+    # Only trust moves that keep the deck root intact and actually deepen the
+    # path -- a model that "helpfully" reparented everything under a new root
+    # would silently detach the library from its deck.
+    mapping = {}
+    for entry in raw_mapping:
+        old = (entry.get("from") or "").strip()
+        new = (entry.get("to") or "").strip()
+        if not old or not new or old == new or old not in tags:
+            continue
+        if old.split("::")[0] != new.split("::")[0]:
+            continue
+        if len(new.split("::")) < len(old.split("::")):
+            continue
+        mapping[old] = new
+
+    if not mapping:
+        return {"moved": 0, "mapping": []}
+
+    def remap(tag_list):
+        return [mapping.get(t, t) for t in tag_list]
+
+    moved = 0
+    for card in store.list_cards():
+        new_tags = remap(card.tags)
+        if new_tags != card.tags:
+            card.tags = new_tags
+            store.update_card(card)
+            moved += 1
+    for note in store.list_reference_notes():
+        new_tags = remap(note.tags)
+        if new_tags != note.tags:
+            note.tags = new_tags
+            store.update_reference_note(note)
+            moved += 1
+
+    return {
+        "moved": moved,
+        "mapping": [{"from": k, "to": v} for k, v in sorted(mapping.items())],
+    }
+
+
 def build_reference_from_sources(
     source_ids: List[str],
     deck: str,
@@ -396,12 +466,13 @@ def build_reference_from_sources(
         context_text="\n\n".join(context_chunks),
         subject_hint=subject_hint,
         instructions=instructions,
+        existing_tags=store.all_tags(),
     )
 
     tags = [t.strip() for t in raw.get("tags", []) if isinstance(t, str) and t.strip()]
     # Reference pages live in the Library next to cards from the same deck,
     # so they get the same deck-rooted tag tree to sort alongside them.
-    tags = _apply_tag_root(tags, deck)
+    tags = _apply_tag_root(_ensure_two_levels(tags), deck)
 
     # Carry over the images themselves (the whiteboard photo, the textbook
     # page) so the page can show the original next to the transcription.
@@ -535,7 +606,7 @@ def process_daily_notes() -> List[CardDraft]:
                 question=_render_question_html(raw.get("question", "")),
                 answer=raw.get("answer", "").strip(),
                 explanation=_render_explanation(raw.get("explanation_points", [])),
-                tags=_apply_tag_root(tags, deck),
+                tags=_apply_tag_root(_ensure_two_levels(tags), deck),
                 deck=deck,
                 source_ids=[],
             )

@@ -600,6 +600,88 @@ function renderAccordion(sections) {
     .join("");
 }
 
+/** Every topic's leaf name -> its full path, longest name first so
+ *  "Cyanide Poisoning" wins over a hypothetical "Cyanide". */
+function topicLinkIndex() {
+  const index = [];
+  const seen = new Set();
+  for (const item of allLibraryItems()) {
+    for (const tag of item.tags || []) {
+      const parts = tag.split("::");
+      // Skip level 0 (the deck root) -- linking every mention of the deck
+      // name to the library root is noise.
+      for (let i = 1; i < parts.length; i++) {
+        const leaf = parts[i].trim();
+        const path = parts.slice(0, i + 1).join("::");
+        const key = leaf.toLowerCase();
+        if (leaf.length < 4 || seen.has(key)) continue;
+        seen.add(key);
+        index.push({ leaf, path });
+      }
+    }
+  }
+  return index.sort((a, b) => b.leaf.length - a.leaf.length);
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Turns mentions of other topics into links to their pages -- the wiki
+ *  cross-reference behaviour. Walks text nodes only, so it can never break
+ *  existing markup or double-link inside an anchor we just made. */
+function linkifyTopics(html, currentPath) {
+  const index = topicLinkIndex().filter((e) => e.path !== currentPath);
+  if (index.length === 0) return html;
+
+  const holder = document.createElement("div");
+  holder.innerHTML = html;
+
+  const walker = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      // Don't touch text already inside a link or a heading.
+      if (node.parentElement.closest("a, .topic-link, h1, h2, h3, h4")) {
+        return NodeFilter.FILTER_REJECT;
+      }
+      return node.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+  // ONE combined pass per text node. Replacing leaf-by-leaf would re-scan the
+  // markup inserted by earlier leaves and match inside its attributes,
+  // corrupting the link (and it did -- a data-path came out containing HTML).
+  const byLeaf = new Map(index.map((e) => [e.leaf.toLowerCase(), e.path]));
+  const combined = new RegExp(
+    `\\b(${index.map((e) => escapeRegExp(e.leaf)).join("|")})\\b`,
+    "gi"
+  );
+
+  for (const node of textNodes) {
+    const source = node.nodeValue;
+    combined.lastIndex = 0;
+    if (!combined.test(source)) continue;
+    combined.lastIndex = 0;
+
+    const linkedOnce = new Set();
+    const html = escapeHtml(source).replace(combined, (match) => {
+      const key = match.toLowerCase();
+      const path = byLeaf.get(key);
+      // Link only the first mention of a given topic per text node, the way
+      // a wiki links a term once rather than on every occurrence.
+      if (!path || linkedOnce.has(key)) return match;
+      linkedOnce.add(key);
+      return `<button class="topic-link" data-path="${escapeHtml(path)}">${match}</button>`;
+    });
+
+    const frag = document.createElement("span");
+    frag.innerHTML = html;
+    node.parentNode.replaceChild(frag, node);
+  }
+  return holder.innerHTML;
+}
+
 /** A cloze sentence read as prose: blanks filled in and emphasized, so the
  *  page reads like an article instead of a fill-in-the-blank exercise. */
 function clozeAsProse(text) {
@@ -707,7 +789,13 @@ function renderTopicPage(path) {
   if (sections.length === 0) {
     parts.push(`<div class="empty-state">Nothing filed under this topic yet.</div>`);
   } else {
-    parts.push(renderAccordion(sections));
+    // Cross-link mentions of other topics, but only in the prose sections --
+    // the Subtopics list is already links, and re-linking it would nest
+    // buttons inside buttons.
+    const linked = sections.map((s) =>
+      s.title.startsWith("Subtopics") ? s : { ...s, html: linkifyTopics(s.html, path) }
+    );
+    parts.push(renderAccordion(linked));
   }
   return parts.join("");
 }
@@ -946,6 +1034,32 @@ function wireEvents() {
     } finally {
       btn.disabled = false;
       btn.textContent = "🔄 Sync with Anki";
+    }
+  });
+
+  document.getElementById("reorganizeTopicsBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("reorganizeTopicsBtn");
+    if (!confirm("Re-file stray topics under broader disciplines? This changes tags on your cards (and in Anki next time you push).")) return;
+    btn.disabled = true;
+    btn.textContent = "Tidying…";
+    try {
+      const result = await api("/api/cards/reorganize-topics", { method: "POST" });
+      await loadProject();
+      libraryState.selectedPath = null;
+      renderLibrary();
+      if (result.mapping.length === 0) {
+        showToast("Topics already look well organized — nothing moved.");
+      } else {
+        showToast(
+          `Re-filed ${result.mapping.length} topic${result.mapping.length === 1 ? "" : "s"} ` +
+            `across ${result.moved} item${result.moved === 1 ? "" : "s"}.`
+        );
+      }
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🗂️ Tidy up topics";
     }
   });
 

@@ -434,6 +434,15 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .acc.open .acc-body { display: block; }
 .wiki-summary-body p { margin: 0 0 10px 0; font-size: 15px; line-height: 1.6; color: var(--text-muted); }
 
+/* Wiki cross-reference: a mention of another topic, inline in the prose. */
+.topic-link {
+  font: inherit; color: var(--accent-soft-text); background: none; border: none;
+  padding: 0; cursor: pointer;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-decoration-color: var(--accent); text-underline-offset: 2px;
+}
+.topic-link:hover { background: var(--accent-soft); border-radius: 3px; }
+
 .wiki-facts { display: flex; flex-direction: column; gap: 16px; }
 .wiki-fact { padding-left: 14px; border-left: 2px solid var(--border); }
 .wiki-fact-lead { font-size: 15.5px; line-height: 1.55; color: var(--text); margin-bottom: 4px; }
