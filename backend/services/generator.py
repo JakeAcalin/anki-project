@@ -4,6 +4,7 @@ layer and the transcription/video/claude_client services."""
 import html
 import re
 import shutil
+import threading
 from pathlib import Path
 from typing import List, Optional
 
@@ -19,7 +20,12 @@ from ..models import (
     SourceType,
 )
 from ..storage import store
-from . import claude_client, transcription, truelearn_import, video
+from . import claude_client, dedupe, transcription, truelearn_import, video
+
+# Guards the Daily Notes run so only one is ever in flight. Module-level
+# because every entry point (scheduler, startup catch-up, Run Now) has to
+# contend for the same one.
+_daily_notes_run_lock = threading.Lock()
 
 
 def process_source(source: Source) -> Source:
@@ -560,19 +566,27 @@ def catch_up_daily_notes_if_overdue() -> None:
 
 
 def process_daily_notes() -> List[CardDraft]:
-    """Cards only the text appended to the Daily Notes page since the last
-    run (tracked via a character-offset checkpoint), so re-running never
-    re-cards content that's already been turned into cards."""
-    notes = store.get_daily_notes()
-    new_content = notes.text[notes.processed_length :]
-    # Compute the checkpoint from what we actually read, not by re-reading
-    # notes.text later -- store.get_daily_notes() returns a live reference,
-    # so a concurrent edit could otherwise make us mark newly-typed text as
-    # already processed before it was ever sent to Claude.
-    checkpoint = notes.processed_length + len(new_content)
+    """Turn the text added to the Daily Notes page since the last run into
+    cards.
 
+    Only one run may be in flight at a time. Two overlapping runs would each
+    claim their own slice of text, but they'd also both call Claude and both
+    push, and the second one's cards land while the user is still looking at
+    the first one's preview -- so a run that arrives while another is going
+    simply returns, and its text stays in the box for the next one.
+    """
+    if not _daily_notes_run_lock.acquire(blocking=False):
+        return []
+    try:
+        return _process_daily_notes_locked()
+    finally:
+        _daily_notes_run_lock.release()
+
+
+def _process_daily_notes_locked() -> List[CardDraft]:
+    # Claim before generating, not after: see storage.claim_daily_notes_text.
+    new_content = store.claim_daily_notes_text()
     if not new_content.strip():
-        store.mark_daily_notes_processed(checkpoint, 0)
         return []
 
     note_lines = [line.strip() for line in new_content.splitlines() if line.strip()]
@@ -599,7 +613,10 @@ def process_daily_notes() -> List[CardDraft]:
             auto_count_cap=line_count,
         )
     except Exception as exc:  # noqa: BLE001 - record failure, don't crash the scheduler
-        store.mark_daily_notes_processed(notes.processed_length, 0, error=str(exc))
+        # The text was claimed up front, so a failed run has to hand it back
+        # or the notes would be silently swallowed.
+        store.restore_daily_notes_text(new_content)
+        store.record_daily_notes_run(0, error=str(exc))
         raise
 
     deck = store.get_deck_name()
@@ -620,7 +637,16 @@ def process_daily_notes() -> List[CardDraft]:
             )
         )
 
+    # Backstop against re-carding something already in the library -- a note
+    # jotted twice on different days, or anything the claim-first fix can't
+    # reach because it predates it.
+    cards, dropped = dedupe.drop_duplicates(cards, store.list_cards())
+
     store.add_cards(cards)
-    store.mark_daily_notes_processed(checkpoint, len(cards), questions=[c.question for c in cards])
+    store.record_daily_notes_run(
+        len(cards),
+        questions=[c.question for c in cards],
+        skipped_duplicates=len(dropped),
+    )
     push_pending_daily_notes_cards()
     return cards

@@ -825,3 +825,64 @@ textarea { resize: vertical; }
 }
 .daily-notes-preview li { font-size: 14px; color: var(--text); }
 .daily-notes-preview li::before { content: "✓ "; color: var(--green); font-weight: 700; }
+
+/* --- duplicate review ------------------------------------------------ */
+.dup-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 18px;
+}
+.dup-panel.hidden { display: none; }
+.dup-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.dup-head h3 { margin: 0 0 2px; font-size: 16px; }
+.dup-head-actions { display: flex; align-items: center; gap: 10px; }
+.dup-group {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dup-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: background 0.15s, opacity 0.15s;
+}
+.dup-card:hover { background: var(--surface-2); }
+.dup-card.keep { opacity: 1; background: var(--surface-2); }
+.dup-card input { margin-top: 3px; flex-shrink: 0; }
+.dup-card-body { flex: 1; min-width: 0; }
+.dup-q { font-weight: 600; font-size: 14px; color: var(--text); }
+.dup-a { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+.dup-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.dup-badge {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.dup-card.keep .dup-badge {
+  background: var(--green-soft);
+  color: var(--green);
+}

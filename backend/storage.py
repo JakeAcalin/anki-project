@@ -223,26 +223,54 @@ class Store:
             self._save()
             return self._project.daily_notes
 
-    def mark_daily_notes_processed(
+    def claim_daily_notes_text(self) -> str:
+        """Atomically take the un-carded text out of the box and return it.
+
+        Claiming has to happen *before* the model call, not after it. The
+        call takes tens of seconds, and anything that starts a second run in
+        that window -- a double-tapped Run Now, the scheduled job landing on
+        top of the startup catch-up -- would otherwise read the very same
+        text and card it all over again, which is exactly how two versions
+        of one note end up in the deck.
+
+        Returns "" when there's nothing new, which is also the signal to a
+        second caller that the first one already took the work.
+        """
+        with self._lock:
+            notes = self._project.daily_notes
+            claimed = notes.text[notes.processed_length :]
+            if not claimed.strip():
+                return ""
+            # Everything up to here is now this run's responsibility; what's
+            # left in the box is only whatever gets typed from now on.
+            notes.text = notes.text[notes.processed_length + len(claimed) :]
+            notes.processed_length = 0
+            self._save()
+            return claimed
+
+    def restore_daily_notes_text(self, claimed: str) -> None:
+        """Put claimed text back after a failed run, so it isn't lost."""
+        with self._lock:
+            notes = self._project.daily_notes
+            notes.text = claimed + notes.text
+            notes.processed_length = 0
+            self._save()
+
+    def record_daily_notes_run(
         self,
-        processed_length: int,
         card_count: int,
         error: Optional[str] = None,
         questions: Optional[List[str]] = None,
+        skipped_duplicates: int = 0,
     ) -> DailyNotes:
+        """Record the outcome of a run. The text itself was already removed
+        from the box by `claim_daily_notes_text` when the run started."""
         with self._lock:
             notes = self._project.daily_notes
-            # Drop whatever's already been turned into cards instead of
-            # leaving it sitting in the box forever -- it's confusing to see
-            # the same text still there after a run, and the full history
-            # isn't needed once it's been carded. Whatever's left (nothing,
-            # normally, unless new text was typed mid-run) becomes the new
-            # unprocessed content, so the checkpoint resets to 0 for it.
-            notes.text = notes.text[processed_length:]
-            notes.processed_length = 0
             notes.last_run_at = time.time()
             notes.last_run_card_count = card_count
             notes.last_run_error = error
+            notes.last_run_skipped_duplicates = skipped_duplicates
             if questions is not None:
                 notes.last_run_questions = questions
             self._save()

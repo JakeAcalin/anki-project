@@ -1102,6 +1102,110 @@ function renderLibrary() {
   updateStickyContext();
 }
 
+// --- duplicate review -------------------------------------------------
+// Groups of near-identical cards, each with one copy marked to keep. The
+// user re-picks the keeper and confirms; nothing is deleted before that,
+// because "these two look alike" is a guess and only they can tell a real
+// duplicate from a deliberate pair of contrasting cards.
+let duplicateGroups = [];
+
+function renderDuplicatePanel() {
+  const panel = document.getElementById("duplicatePanel");
+  if (duplicateGroups.length === 0) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+  const removeCount = duplicateGroups.reduce((n, g) => n + g.cards.length - 1, 0);
+  panel.classList.remove("hidden");
+  panel.innerHTML = `
+    <div class="dup-head">
+      <div>
+        <h3>${duplicateGroups.length} possible duplicate${duplicateGroups.length === 1 ? "" : "s"}</h3>
+        <p class="field-hint">Pick the copy to keep in each group. The others are deleted here and in Anki.</p>
+      </div>
+      <div class="dup-head-actions">
+        <button id="dupConfirmBtn" class="primary-btn">Remove ${removeCount} other cop${removeCount === 1 ? "y" : "ies"}</button>
+        <button id="dupCancelBtn" class="link-btn">Cancel</button>
+      </div>
+    </div>
+    ${duplicateGroups
+      .map(
+        (g, gi) => `
+      <div class="dup-group">
+        ${g.cards
+          .map(
+            (c, ci) => `
+          <label class="dup-card ${c.id === g.keep_id ? "keep" : ""}">
+            <input type="radio" name="dup-${gi}" value="${escapeHtml(c.id)}"
+                   ${c.id === g.keep_id ? "checked" : ""} />
+            <div class="dup-card-body">
+              <div class="dup-q">${escapeHtml(c.question)}</div>
+              <div class="dup-a">${escapeHtml(c.answer)}</div>
+              <div class="dup-meta">
+                ${ci === 0 ? "oldest" : "newer"}${c.in_anki ? " · in Anki" : ""}
+                ${c.tags.length ? " · " + escapeHtml(c.tags.join(", ")) : ""}
+              </div>
+            </div>
+            <span class="dup-badge">${c.id === g.keep_id ? "Keep" : "Remove"}</span>
+          </label>`
+          )
+          .join("")}
+      </div>`
+      )
+      .join("")}
+  `;
+
+  panel.querySelectorAll('input[type="radio"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      const gi = Number(radio.name.split("-")[1]);
+      duplicateGroups[gi].keep_id = radio.value;
+      renderDuplicatePanel();
+    });
+  });
+  document.getElementById("dupCancelBtn").addEventListener("click", () => {
+    duplicateGroups = [];
+    renderDuplicatePanel();
+  });
+  document.getElementById("dupConfirmBtn").addEventListener("click", confirmDuplicateRemoval);
+}
+
+async function confirmDuplicateRemoval() {
+  const removeIds = duplicateGroups.flatMap((g) =>
+    g.cards.filter((c) => c.id !== g.keep_id).map((c) => c.id)
+  );
+  if (removeIds.length === 0) return;
+  if (
+    !confirm(
+      `Permanently delete ${removeIds.length} card${removeIds.length === 1 ? "" : "s"}? ` +
+        "Any that were already pushed are removed from Anki too, along with their review history."
+    )
+  )
+    return;
+  const btn = document.getElementById("dupConfirmBtn");
+  btn.disabled = true;
+  btn.textContent = "Removing…";
+  try {
+    const result = await api("/api/cards/duplicates/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remove_ids: removeIds }),
+    });
+    duplicateGroups = [];
+    await loadProject();
+    renderDuplicatePanel();
+    renderLibrary();
+    showToast(
+      `Removed ${result.removed} duplicate${result.removed === 1 ? "" : "s"}` +
+        (result.removed_from_anki ? ` (${result.removed_from_anki} also deleted from Anki).` : ".")
+    );
+  } catch (err) {
+    showToast(err.message, true);
+    btn.disabled = false;
+    renderDuplicatePanel();
+  }
+}
+
 // Re-roots each card's own tags under `newDeck` (using that card's current
 // deck as the prefix to replace, so a batch with mixed/hand-edited decks
 // still ends up consistent) and saves both fields. Shared by the Create-tab
@@ -1275,6 +1379,24 @@ function wireEvents() {
   document.getElementById("librarySearch").addEventListener("input", (e) => {
     libraryState.search = e.target.value;
     renderLibrary();
+  });
+
+  document.getElementById("findDuplicatesBtn").addEventListener("click", async () => {
+    const btn = document.getElementById("findDuplicatesBtn");
+    btn.disabled = true;
+    btn.textContent = "Scanning…";
+    try {
+      const result = await api("/api/cards/duplicates");
+      duplicateGroups = result.groups;
+      renderDuplicatePanel();
+      if (duplicateGroups.length === 0) showToast("No duplicates found.");
+      else document.getElementById("duplicatePanel").scrollIntoView({ behavior: "smooth" });
+    } catch (err) {
+      showToast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "🔍 Find duplicates";
+    }
   });
 
   document.getElementById("syncCheckBtn").addEventListener("click", async () => {

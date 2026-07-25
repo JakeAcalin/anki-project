@@ -66,6 +66,20 @@ def list_decks() -> List[str]:
     return _invoke("deckNames") or []
 
 
+def delete_notes(note_ids: List[int]) -> None:
+    """Remove notes from the Anki collection.
+
+    Used when resolving duplicates: a duplicate that's already been pushed
+    has to go from Anki too, otherwise it keeps coming up in reviews and the
+    next sync would simply un-archive it here as a card Anki still knows
+    about. Anki ignores IDs it doesn't recognise, so a note the user already
+    deleted by hand isn't an error.
+    """
+    if not note_ids:
+        return
+    _invoke("deleteNotes", notes=note_ids)
+
+
 def _model_exists(name: str) -> bool:
     return name in (_invoke("modelNames") or [])
 

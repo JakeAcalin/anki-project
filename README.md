@@ -167,6 +167,38 @@ for as long as the backend keeps running, so as soon as you reopen Anki the
 cards sync automatically with no action needed. The Daily Notes tab shows
 whether the last push succeeded or is still waiting on Anki.
 
+Because these cards are never reviewed by hand before they land in Anki, a
+run claims the notes text *before* it calls Claude rather than after. The
+model call takes tens of seconds, and anything that starts a second run in
+that window — a double-tapped **Run Now**, the scheduled job landing on top
+of the startup catch-up — would otherwise read the very same text and card
+it twice, which is how two versions of one note end up in the deck. Only one
+run may be in flight at a time; a run that fails hands its text back to the
+box rather than swallowing it.
+
+## Duplicates
+
+**Find duplicates** in the Library sidebar groups near-identical cards and
+asks which copy to keep. Confirming deletes the others here *and* in Anki —
+archiving isn't enough, since in this app "archived" means "already pushed"
+and the next sync would simply bring an un-deleted duplicate back.
+
+Matching can't rely on question wording alone. Two copies from separate
+model calls are never byte-identical, while genuine contrast cards are
+near-identical by construction — "Which nerve innervates the *anterior*
+tongue?" scores higher against its *posterior* twin than a real duplicate
+pair does against itself. So the question score is only a gate, and the
+answers decide: one answer's content words being contained in the other's
+(a rewording), and no disagreement in any numbers they quote (which is what
+keeps a dose "in adults" apart from the same dose "in children").
+
+Nothing is ever deleted on similarity alone — the scan only produces a list
+to confirm. Daily Notes additionally drops a card that duplicates something
+already in the library before saving it, and reports how many it skipped;
+Create-tab generation deliberately doesn't, since you review those cards
+before they go anywhere and silently dropping them would look like a failed
+generation.
+
 ## Importing TrueLearn notes
 
 The "Upload File" tab also accepts a TrueLearn **"My Notes"** export
@@ -195,6 +227,7 @@ backend/
     generator.py            orchestrates source processing -> card generation
     anki_export.py          genanki .apkg builder (custom note models, CSS)
     ankiconnect_client.py    pushes/updates cards in a local running Anki desktop
+    dedupe.py                 near-duplicate card detection
   routers/                 sources / media / generate / cards / export / project /
                             anki-connect / daily-notes
 frontend/

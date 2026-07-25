@@ -120,6 +120,7 @@ class DailyNotes(BaseModel):
     last_run_card_count: int = 0
     last_run_error: Optional[str] = None
     last_run_questions: List[str] = Field(default_factory=list)
+    last_run_skipped_duplicates: int = 0
     last_push_at: Optional[float] = None
     last_push_count: int = 0
     last_push_error: Optional[str] = None

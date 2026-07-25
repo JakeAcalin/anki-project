@@ -45,6 +45,52 @@ def reorganize_topics():
         raise HTTPException(400, str(exc)) from exc
 
 
+@router.get("/duplicates")
+def list_duplicates():
+    """Near-identical cards, grouped for review. Read-only -- nothing is
+    removed until the user says which copies to drop."""
+    from ..services import dedupe
+
+    return {"groups": dedupe.find_duplicate_groups(store.list_cards())}
+
+
+class DuplicateResolve(BaseModel):
+    remove_ids: List[str]
+
+
+@router.post("/duplicates/resolve")
+def resolve_duplicates(body: DuplicateResolve):
+    """Delete the copies the user picked, here and in Anki.
+
+    Archiving isn't enough: in this app 'archived' means 'already pushed',
+    and the next Anki sync would un-archive anything Anki no longer has --
+    so a duplicate left in the collection would simply come back.
+    """
+    from ..services import ankiconnect_client
+    from ..services.ankiconnect_client import AnkiConnectError
+
+    cards = {c.id: c for c in store.list_cards()}
+    targets = [cards[cid] for cid in body.remove_ids if cid in cards]
+    note_ids = [c.anki_note_id for c in targets if c.anki_note_id is not None]
+
+    if note_ids:
+        try:
+            ankiconnect_client.delete_notes(note_ids)
+        except AnkiConnectError as exc:
+            # Keep the local copies too, so the two stay consistent and the
+            # user can retry once Anki is open rather than being left with
+            # cards deleted here but still coming up in reviews.
+            raise HTTPException(
+                400,
+                f"Removed nothing: these duplicates are in Anki and couldn't be deleted there. {exc}",
+            ) from exc
+
+    for card in targets:
+        store.delete_card(card.id)
+
+    return {"removed": len(targets), "removed_from_anki": len(note_ids)}
+
+
 @router.post("")
 def create_card(card: CardDraft):
     store.add_cards([card])

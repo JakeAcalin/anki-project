@@ -145,10 +145,12 @@
     <input id="librarySearch" type="text" placeholder="Search this library…" />
     <button id="reorganizeTopicsBtn" class="secondary-btn full-width" title="Ask Claude to re-file stray one-off topics under broader disciplines (Pulmonology, Pharmacology, …)">🗂️ Tidy up topics</button>
     <button id="libraryChangeDeckBtn" class="secondary-btn full-width" title="Change the Anki deck for every card under the topic you're viewing">✏️ Change deck for this topic</button>
+    <button id="findDuplicatesBtn" class="secondary-btn full-width" title="Find near-identical cards and choose which copies to remove">🔍 Find duplicates</button>
     <button id="syncCheckBtn" class="secondary-btn full-width" title="Reconcile with Anki: un-archive cards deleted there, and pull in any edits made directly in Anki">🔄 Sync with Anki</button>
   </aside>
   <section class="col library-main">
     <div id="wikiContextBar" class="wiki-context-bar hidden"></div>
+    <div id="duplicatePanel" class="dup-panel hidden"></div>
     <div id="libraryArticles" class="library-articles"></div>
   </section>
 </main>
