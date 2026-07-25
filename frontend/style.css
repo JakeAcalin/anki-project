@@ -492,6 +492,48 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .acc.focused > .acc-head .acc-title { color: var(--accent-soft-text); }
 .wiki-summary-body p { margin: 0 0 10px 0; font-size: 15px; line-height: 1.6; color: var(--text-muted); }
 
+/* Sticky "Article › Section" context while scrolling a long page. */
+.wiki-context-bar {
+  position: sticky; top: 62px; z-index: 30;
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding: 9px 16px; margin-bottom: -6px;
+  border: 1px solid var(--border-soft); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow-sm);
+  font-size: 12.5px;
+}
+.wiki-context-bar.hidden { display: none; }
+.ctx-article { font-weight: 700; color: var(--text); }
+.ctx-sep { color: var(--text-faint); }
+.ctx-section { font-weight: 650; color: var(--accent-soft-text); }
+
+.wiki-toolbar { display: flex; gap: 14px; margin: 4px 0 10px 2px; }
+.wiki-toolbar .link-btn { font-size: 12px; }
+
+/* Hover preview for a cross-link. */
+.topic-preview {
+  position: fixed; z-index: 200; width: min(340px, calc(100vw - 24px));
+  padding: 13px 15px; border-radius: var(--radius);
+  background: var(--surface-hover); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+}
+.topic-preview.hidden { display: none; }
+.tp-title { font-size: 15px; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
+.tp-meta { font-size: 11px; color: var(--text-faint); margin-top: 1px; }
+.tp-blurb {
+  font-size: 13px; line-height: 1.5; color: var(--text-muted); margin-top: 8px;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tp-blurb strong, .tp-blurb b { color: var(--text); }
+.tp-ans { color: var(--accent-soft-text); font-weight: 650; }
+.tp-kids { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+.tp-kid {
+  font-size: 10.5px; font-weight: 650; padding: 2px 8px; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-soft-text);
+}
+.tp-hint { font-size: 10.5px; color: var(--text-faint); margin-top: 9px; }
+
 /* Wiki cross-reference: a mention of another topic, inline in the prose. */
 .topic-link {
   font: inherit; color: var(--accent-soft-text); background: none; border: none;
@@ -537,6 +579,16 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .wiki-body ul, .wiki-body ol { margin: 4px 0 4px 22px; padding: 0; }
 .wiki-body li { margin: 3px 0; }
 .wiki-body ul ul, .wiki-body ol ul { margin-top: 3px; margin-bottom: 3px; }
+/* Mnemonic / intuition callout inside an article. */
+.callout {
+  display: flex; gap: 11px; align-items: flex-start;
+  margin: 14px 0; padding: 12px 15px;
+  border-radius: var(--radius); border: 1px solid var(--accent-soft);
+  background: var(--accent-soft);
+}
+.callout-icon { font-size: 15px; line-height: 1.5; flex: 0 0 auto; }
+.callout-body { font-size: 14px; line-height: 1.6; color: var(--text); }
+.callout-body b, .callout-body strong { font-weight: 750; }
 .wiki-body mark {
   background: var(--amber-soft); color: var(--amber);
   padding: 1px 5px; border-radius: 4px; font-weight: 600;

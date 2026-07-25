@@ -165,6 +165,22 @@ REFERENCE_TOOL = {
                                 "unordered set of facts."
                             ),
                         },
+                        "mnemonic": {
+                            "type": "string",
+                            "description": (
+                                "OPTIONAL. A memory aid for this section, rendered as a "
+                                "highlighted callout box. Use only when a genuine, "
+                                "well-known mnemonic exists for this material, or when "
+                                "the section is a list whose initials spell something "
+                                "usable -- capitalise the letters that carry it, e.g. "
+                                "'Side effects of CAPTOPRIL: Cough, Angioedema, "
+                                "Pemphigus vulgaris, Teratogenicity, hypOtension, high "
+                                "Potassium, Renal failure, Increased creatinine, Low "
+                                "GFR.' A one-sentence intuition for why something works "
+                                "is also fine here. Leave empty rather than inventing a "
+                                "forced or unhelpful one."
+                            ),
+                        },
                     },
                     "required": ["heading", "points", "ordered"],
                 },

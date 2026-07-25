@@ -124,6 +124,18 @@ underneath.
 library, that mention becomes a link to its page (first mention per
 paragraph, the way a wiki does it) — so a note about weight-based dosing
 that mentions succinylcholine links straight to the succinylcholine page.
+Hovering one of those links pops up a preview of the target — its title, how
+much is on it, a one-line blurb and its subtopics — so you can decide whether
+it's worth the click without leaving the page.
+
+**Reading a long page.** Sections arrive collapsed, so a page opens as a
+table of contents you can scan rather than a wall of text; **Expand all** /
+**Collapse all** in the page toolbar flips everything at once. Once you're
+scrolled past the title, a sticky bar keeps `Article › Section` visible so
+you always know where you are in a long article.
+
+**Mnemonics** get their own callout box when Claude has one for a section,
+set apart from the surrounding facts instead of buried in a bullet.
 
 **Keeping the tree tidy.** Card generation is told to file everything under
 a broad discipline (`Pulmonology::Atelectasis`, not a bare `Atelectasis`),

@@ -673,12 +673,16 @@ function splitBodyIntoSections(bodyHtml) {
   return sections;
 }
 
+/** Sections start collapsed so the page opens as a scannable table of
+ *  contents, the way a wiki article does -- only the one you navigated to
+ *  is expanded. */
 function renderAccordion(sections) {
   return sections
     .map((s) => {
       const focused = libraryState.focusSection && s.title === libraryState.focusSection;
       return `
-    <section class="acc ${s.open === false && !focused ? "" : "open"} ${focused ? "focused" : ""}"
+    <section class="acc ${focused ? "open focused" : ""}"
+             data-section-title="${escapeHtml(s.title)}"
              ${s.sectionPath ? `data-section-path="${escapeHtml(s.sectionPath)}"` : ""}>
       <button class="acc-head" type="button">
         <span class="acc-title">${escapeHtml(s.title)}</span>
@@ -688,6 +692,41 @@ function renderAccordion(sections) {
     </section>`;
     })
     .join("");
+}
+
+function renderPageToolbar(sectionCount) {
+  if (sectionCount === 0) return "";
+  return `
+    <div class="wiki-toolbar">
+      <button class="link-btn" data-action="expand-all">Expand all</button>
+      <button class="link-btn" data-action="collapse-all">Collapse all</button>
+    </div>`;
+}
+
+/** Sticky "Article › Section" bar: while you're scrolled inside an expanded
+ *  section, it names where you are, so a long page never loses context. */
+function updateStickyContext() {
+  const bar = document.getElementById("wikiContextBar");
+  if (!bar) return;
+  const title = document.querySelector(".wiki-page-title");
+  if (!title) return bar.classList.add("hidden");
+
+  const titleGone = title.getBoundingClientRect().bottom < 70;
+  if (!titleGone) return bar.classList.add("hidden");
+
+  // The last open section whose header has scrolled above the fold.
+  let current = null;
+  for (const acc of document.querySelectorAll(".acc.open")) {
+    if (acc.getBoundingClientRect().top < 90) current = acc;
+  }
+  bar.innerHTML =
+    `<span class="ctx-article">${escapeHtml(title.textContent)}</span>` +
+    (current
+      ? `<span class="ctx-sep">›</span><span class="ctx-section">${escapeHtml(
+          current.dataset.sectionTitle || ""
+        )}</span>`
+      : "");
+  bar.classList.remove("hidden");
 }
 
 /** Every topic's leaf name -> its full path, longest name first so
@@ -770,6 +809,85 @@ function linkifyTopics(html, currentPath) {
     node.parentNode.replaceChild(frag, node);
   }
   return holder.innerHTML;
+}
+
+/** Hover preview for a cross-link: what the linked topic is about, without
+ *  leaving the page. Uses its reference summary if it has one, otherwise the
+ *  first fact filed under it. */
+function topicPreviewHtml(path) {
+  const items = cardsUnderPath(allLibraryItems(), path);
+  if (items.length === 0) return "";
+  const notes = items.filter((i) => i.body !== undefined);
+  const cards = items.filter((i) => i.body === undefined);
+  const leaf = path.split("::").pop();
+
+  let blurb = "";
+  if (notes.length && notes[0].summary) {
+    blurb = escapeHtml(notes[0].summary);
+  } else if (cards.length) {
+    const c = cards[0];
+    blurb =
+      c.card_type === "sequence"
+        ? escapeHtml(c.sequence_prompt || "")
+        : c.card_type === "cloze"
+        ? clozeAsProse(c.cloze_text)
+        : `${c.question} <span class="tp-ans">${escapeHtml(c.answer)}</span>`;
+  }
+
+  const kids = childTopicNames(allLibraryItems(), path).slice(0, 4);
+  return `
+    <div class="tp-title">${escapeHtml(leaf)}</div>
+    <div class="tp-meta">${items.length} item${items.length === 1 ? "" : "s"}${
+    notes.length ? " · has notes" : ""
+  }</div>
+    ${blurb ? `<div class="tp-blurb">${blurb}</div>` : ""}
+    ${
+      kids.length
+        ? `<div class="tp-kids">${kids
+            .map((k) => `<span class="tp-kid">${escapeHtml(k)}</span>`)
+            .join("")}</div>`
+        : ""
+    }
+    <div class="tp-hint">Click to open</div>`;
+}
+
+function initTopicPreview() {
+  const pop = document.createElement("div");
+  pop.className = "topic-preview hidden";
+  pop.id = "topicPreview";
+  document.body.appendChild(pop);
+  let hideTimer = null;
+
+  function place(el) {
+    const r = el.getBoundingClientRect();
+    pop.style.visibility = "hidden";
+    pop.classList.remove("hidden");
+    const pr = pop.getBoundingClientRect();
+    // Prefer below-left; flip above if it would run off the bottom.
+    const top = r.bottom + 8 + pr.height > window.innerHeight ? r.top - pr.height - 8 : r.bottom + 8;
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - pr.width - 8);
+    pop.style.top = `${Math.max(8, top)}px`;
+    pop.style.left = `${left}px`;
+    pop.style.visibility = "visible";
+  }
+
+  document.addEventListener("mouseover", (e) => {
+    const link = e.target.closest(".topic-link");
+    if (!link) return;
+    const html = topicPreviewHtml(link.dataset.path);
+    if (!html) return;
+    clearTimeout(hideTimer);
+    pop.innerHTML = html;
+    place(link);
+  });
+
+  document.addEventListener("mouseout", (e) => {
+    if (!e.target.closest(".topic-link")) return;
+    hideTimer = setTimeout(() => pop.classList.add("hidden"), 180);
+  });
+  pop.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+  pop.addEventListener("mouseleave", () => pop.classList.add("hidden"));
+  window.addEventListener("scroll", () => pop.classList.add("hidden"), { passive: true });
 }
 
 /** A cloze sentence read as prose: blanks filled in and emphasized, so the
@@ -912,6 +1030,7 @@ function renderTopicPage(path) {
     const linked = sections.map((s) =>
       s.isNav ? s : { ...s, html: linkifyTopics(s.html, path) }
     );
+    parts.push(renderPageToolbar(linked.length));
     parts.push(renderAccordion(linked));
   }
   return parts.join("");
@@ -980,6 +1099,7 @@ function renderLibrary() {
   document.getElementById("libraryArticles").innerHTML = query
     ? renderSearchResults(query)
     : renderTopicPage(libraryState.selectedPath);
+  updateStickyContext();
 }
 
 // Re-roots each card's own tags under `newDeck` (using that card's current
@@ -1330,9 +1450,18 @@ function wireEvents() {
   });
 
   document.getElementById("libraryArticles").addEventListener("click", async (e) => {
+    const bulk = e.target.closest("[data-action='expand-all'], [data-action='collapse-all']");
+    if (bulk) {
+      const open = bulk.dataset.action === "expand-all";
+      document.querySelectorAll("#libraryArticles .acc").forEach((a) => a.classList.toggle("open", open));
+      updateStickyContext();
+      return;
+    }
+
     const accHead = e.target.closest(".acc-head");
     if (accHead) {
       accHead.parentElement.classList.toggle("open");
+      updateStickyContext();
       return;
     }
 
@@ -1662,5 +1791,7 @@ function wireEvents() {
 initTheme();
 wireEvents();
 attachAllDeckAutocompletes();
+initTopicPreview();
 renderOutputMode();
+window.addEventListener("scroll", updateStickyContext, { passive: true });
 loadProject();

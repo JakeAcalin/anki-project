@@ -209,6 +209,14 @@ def _render_reference_body(sections: List[dict]) -> str:
             html_parts.append("</ul>")
         html_parts.append(f"</{list_tag}>")
         out.append("".join(html_parts))
+
+        mnemonic = str(section.get("mnemonic", "") or "").strip()
+        if mnemonic:
+            escaped = _HIGHLIGHT_RE.sub(r"<mark>\1</mark>", html.escape(mnemonic))
+            out.append(
+                '<aside class="callout"><span class="callout-icon">💡</span>'
+                f'<div class="callout-body">{escaped}</div></aside>'
+            )
     return "".join(out)
 
 
