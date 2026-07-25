@@ -367,6 +367,42 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
 .wiki-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; }
 .wiki-deck { font-size: 11px; color: var(--text-faint); margin-left: auto; }
 
+/* Reference pages read as the article; cards below are its drill questions. */
+.wiki-reference { border-left: 3px solid var(--teal); }
+.wiki-kind-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.reference-pill { background: var(--teal-soft); color: var(--teal); }
+.wiki-title { font-size: 20px; font-weight: 750; margin: 0 0 6px 0; letter-spacing: -0.015em; color: var(--text); text-transform: none; }
+.wiki-summary { font-size: 14px; color: var(--text-muted); margin: 0 0 14px 0; line-height: 1.55; }
+.wiki-body { font-size: 14.5px; line-height: 1.65; color: var(--text); }
+.wiki-body h4 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--accent-soft-text); margin: 16px 0 6px 0; font-weight: 700;
+}
+.wiki-body h4:first-child { margin-top: 0; }
+.wiki-body ul, .wiki-body ol { margin: 4px 0 4px 22px; padding: 0; }
+.wiki-body li { margin: 3px 0; }
+.wiki-body ul ul, .wiki-body ol ul { margin-top: 3px; margin-bottom: 3px; }
+.wiki-body mark {
+  background: var(--amber-soft); color: var(--amber);
+  padding: 1px 5px; border-radius: 4px; font-weight: 600;
+}
+.library-section-heading {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-muted); font-weight: 700; margin: 10px 0 0 2px;
+}
+.library-kind-filter { margin-bottom: 10px; }
+.library-kind-filter button { font-size: 12px; padding: 6px 4px; }
+
+.notes-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; }
+.notes-tool-btn {
+  font-size: 12px; font-weight: 650; padding: 5px 10px; border-radius: 7px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); color: var(--text-muted);
+  transition: background .15s ease, color .15s ease;
+}
+.notes-tool-btn:hover { background: var(--accent-soft); color: var(--accent-soft-text); }
+.notes-toolbar-hint { font-size: 11.5px; color: var(--text-faint); margin-left: auto; }
+#cardOnlyOptions.hidden, #maxCardsRow.hidden { display: none; }
+
 .layout {
   display: grid;
   grid-template-columns: 380px 1fr;

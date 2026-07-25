@@ -73,12 +73,21 @@
   </section>
 
   <section class="col generate-col">
-    <h2>2. Generate Cards</h2>
+    <h2>2. Generate</h2>
     <div class="card-box">
-      <label class="field-label">Card type</label>
-      <div id="cardTypeToggle" class="segmented">
-        <button data-card-type="basic" class="active">Basic</button>
-        <button data-card-type="cloze">Cloze deletion</button>
+      <label class="field-label">Make</label>
+      <div id="outputModeToggle" class="segmented">
+        <button data-output-mode="cards" class="active">🎴 Flashcards</button>
+        <button data-output-mode="reference">📖 Reference page</button>
+      </div>
+      <p class="field-hint" id="outputModeHint">Quizzable cards pushed to Anki.</p>
+
+      <div id="cardOnlyOptions">
+        <label class="field-label">Card type</label>
+        <div id="cardTypeToggle" class="segmented">
+          <button data-card-type="basic" class="active">Basic</button>
+          <button data-card-type="cloze">Cloze deletion</button>
+        </div>
       </div>
 
       <label class="field-label">Subject (optional root tag)</label>
@@ -87,9 +96,11 @@
       <label class="field-label">Extra instructions (optional)</label>
       <textarea id="instructions" rows="3" placeholder="e.g. Focus on mechanisms, not dates. Write explanations for a college beginner."></textarea>
 
-      <label class="field-label">Max cards</label>
-      <input id="maxCards" type="number" value="20" min="1" max="100" />
-      <p class="field-hint">Ignored if a source has student-highlighted text — card count is then chosen automatically, one per highlighted concept.</p>
+      <div id="maxCardsRow">
+        <label class="field-label">Max cards</label>
+        <input id="maxCards" type="number" value="20" min="1" max="100" />
+        <p class="field-hint">Ignored if a source has student-highlighted text — card count is then chosen automatically, one per highlighted concept.</p>
+      </div>
 
       <div class="field-label">Sources to use (must be processed)</div>
       <div id="sourceCheckboxes" class="source-checkboxes"></div>
@@ -119,7 +130,12 @@
 <main id="libraryView" class="library-layout hidden">
   <aside class="col library-sidebar">
     <h2>📚 Topics</h2>
-    <input id="librarySearch" type="text" placeholder="Search questions, answers, tags…" />
+    <input id="librarySearch" type="text" placeholder="Search notes, questions, answers, tags…" />
+    <div id="libraryKindFilter" class="segmented library-kind-filter">
+      <button data-kind="all" class="active">All</button>
+      <button data-kind="reference">📖 Notes</button>
+      <button data-kind="cards">🎴 Cards</button>
+    </div>
     <div id="topicTree" class="topic-tree"></div>
     <button id="syncCheckBtn" class="secondary-btn full-width" title="Reconcile with Anki: un-archive cards deleted there, and pull in any edits made directly in Anki">🔄 Sync with Anki</button>
   </aside>
@@ -142,7 +158,13 @@
       do anything else here.
     </p>
     <div class="card-box">
-      <textarea id="dailyNotesText" rows="18" placeholder="e.g. Learned that remifentanil has an ultra-short context-sensitive half-time because it's metabolized by plasma esterases..."></textarea>
+      <div class="notes-toolbar">
+        <button class="notes-tool-btn" data-insert="bullet" title="Bullet point">• List</button>
+        <button class="notes-tool-btn" data-insert="number" title="Numbered point">1. Numbered</button>
+        <button class="notes-tool-btn" data-insert="indent" title="Indent (sub-point)">⇥ Indent</button>
+        <span class="notes-toolbar-hint">One note per line — each line becomes its own card.</span>
+      </div>
+      <textarea id="dailyNotesText" rows="26" placeholder="e.g. Learned that remifentanil has an ultra-short context-sensitive half-time because it's metabolized by plasma esterases..."></textarea>
       <div class="daily-notes-status">
         <span id="dailyNotesSaveState">Saved</span>
         <span id="dailyNotesPendingCount"></span>

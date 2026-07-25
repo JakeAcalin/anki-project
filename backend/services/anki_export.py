@@ -58,6 +58,22 @@ hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
 }
 .answer-images { margin-top: 14px; }
 .answer-images img { max-width: 100%; border-radius: 6px; margin-top: 8px; display: block; }
+
+/* "Hide all, guess one": on the FRONT of a multi-blank note (a list like
+   the H's and T's), Anki normally leaves the sibling blanks showing as
+   plain text -- so you can read the rest of the list straight off the card
+   and never actually recall it. Blank them out too, leaving only the one
+   being asked. The back still shows every item, so the list stays intact
+   as context once answered. Relies on Anki's .cloze-inactive wrapper
+   (Anki 2.1.56+); on older versions this rule simply does nothing and
+   behavior falls back to standard cloze. */
+.cloze-question .cloze-inactive { font-size: 0; }
+.cloze-question .cloze-inactive::before {
+  content: "[...]";
+  font-size: 22px;
+  color: #b9b9c4;
+  font-weight: 600;
+}
 """
 
 BASIC_QFMT = '<div class="question">{{Question}}</div>'
@@ -69,9 +85,9 @@ BASIC_AFMT = (
     '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}'
 )
 
-CLOZE_QFMT = '<div class="cloze-text">{{cloze:Text}}</div>'
+CLOZE_QFMT = '<div class="cloze-text cloze-question">{{cloze:Text}}</div>'
 CLOZE_AFMT = (
-    '<div class="cloze-text">{{cloze:Text}}</div>'
+    '<div class="cloze-text cloze-answer">{{cloze:Text}}</div>'
     '{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}'
     '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}'
 )

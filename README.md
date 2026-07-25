@@ -82,6 +82,26 @@ Create, excluded from future exports/pushes) but remain fully visible and
 searchable in the **Library** tab. Cards that fail to push are left alone
 in Create so you can fix and retry them.
 
+## Reference pages (not everything should be a flashcard)
+
+The Generate step has a **Make** toggle: *Flashcards* or *Reference page*.
+Reference mode turns the same sources into a wiki-style page kept in the
+Library — never pushed to Anki, never quizzed. It's for material worth
+keeping but not worth drilling:
+
+- a photo of a whiteboard from a lecture, transcribed into structured notes
+- photos of a textbook chapter you just read, turned into a summary page
+- practical tips picked up in the OR ("check for fake eyelashes so you
+  don't pull them off") that you want to find later but don't need on a card
+
+Unlike card generation, reference mode is told to *preserve* detail rather
+than distill it — numbers, doses, caveats and step-by-step procedures are
+kept, organized into headed sections with bullet or numbered lists.
+
+The Library shows both kinds together, filterable by Notes / Cards: the
+reference page reads as the article, with any flashcards on the same topic
+listed under it.
+
 ## Daily Notes
 
 A fourth tab for a different workflow: instead of uploading discrete
@@ -139,6 +159,22 @@ frontend/
 Hierarchical tags rely on Anki's native `::` nesting convention, so tags like
 `Biology::CellBiology::Photosynthesis` show up as a nested tree in Anki's
 tag sidebar. The same convention is used for deck names to create subdecks.
+
+### Card quality and list ("sequence") cards
+
+Card generation follows the conventions the big medical decks are built on
+— chiefly the minimum information principle: one fact per card, no card
+that needs "and" to say what it tests, every card standing on its own
+months later with no memory of the source.
+
+Lists that have to be learned as a set (the H's and T's, the components of
+a score, the steps of an algorithm) are handled specially: instead of one
+unlearnable "name all six" card, the list gets one `{{c1::}}`, `{{c2::}}`,
+`{{c3::}}`… blank per member, which Anki turns into one card per item while
+keeping them anchored to the list they belong to. The cloze template also
+does **hide-all-guess-one** — on the front of such a card the *sibling*
+blanks stay hidden, so you can't read the rest of the list off the screen;
+the back reveals the whole list as context.
 
 ## Setup
 

@@ -5,7 +5,7 @@ from typing import List, Optional
 import time
 
 from . import config
-from .models import CardDraft, DailyNotes, MediaItem, Project, Source
+from .models import CardDraft, DailyNotes, MediaItem, Project, ReferenceNote, Source
 
 
 def _unlink_quiet(path) -> None:
@@ -128,6 +128,37 @@ class Store:
     def delete_card(self, card_id: str) -> None:
         with self._lock:
             self._project.cards = [c for c in self._project.cards if c.id != card_id]
+            self._save()
+
+    # -- reference notes --
+    def add_reference_notes(self, notes: List[ReferenceNote]) -> List[ReferenceNote]:
+        with self._lock:
+            self._project.reference_notes.extend(notes)
+            self._save()
+            return notes
+
+    def list_reference_notes(self) -> List[ReferenceNote]:
+        with self._lock:
+            return list(self._project.reference_notes)
+
+    def get_reference_note(self, note_id: str) -> Optional[ReferenceNote]:
+        with self._lock:
+            return next((n for n in self._project.reference_notes if n.id == note_id), None)
+
+    def update_reference_note(self, note: ReferenceNote) -> ReferenceNote:
+        with self._lock:
+            for i, n in enumerate(self._project.reference_notes):
+                if n.id == note.id:
+                    self._project.reference_notes[i] = note
+                    break
+            self._save()
+            return note
+
+    def delete_reference_note(self, note_id: str) -> None:
+        with self._lock:
+            self._project.reference_notes = [
+                n for n in self._project.reference_notes if n.id != note_id
+            ]
             self._save()
 
     # -- project-wide --

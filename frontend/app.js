@@ -6,6 +6,8 @@ const state = {
   claudeConfigured: true,
   selectedSourceIds: new Set(),
   cardType: "basic",
+  outputMode: "cards",
+  referenceNotes: [],
   ankiConnectAvailable: false,
   ankiDecks: [],
   dailyNotes: {
@@ -18,6 +20,7 @@ const state = {
 const libraryState = {
   selectedPath: null, // null = "All topics"
   search: "",
+  kind: "all", // all | reference | cards
 };
 
 let pollHandle = null;
@@ -100,6 +103,7 @@ async function loadProject() {
   state.sources = data.sources;
   state.media = data.media;
   state.cards = data.cards;
+  state.referenceNotes = data.reference_notes || [];
   state.deckName = data.deck_name;
   state.claudeConfigured = data.claude_configured;
   state.dailyNotes = data.daily_notes;
@@ -177,6 +181,18 @@ function attachDeckAutocomplete(input) {
 
 function attachAllDeckAutocompletes(root = document) {
   root.querySelectorAll(".deck-autocomplete input").forEach(attachDeckAutocomplete);
+}
+
+function renderOutputMode() {
+  const isReference = state.outputMode === "reference";
+  document.getElementById("cardOnlyOptions").classList.toggle("hidden", isReference);
+  document.getElementById("maxCardsRow").classList.toggle("hidden", isReference);
+  document.getElementById("outputModeHint").textContent = isReference
+    ? "A wiki page kept in the Library for looking up later — no flashcards, nothing pushed to Anki."
+    : "Quizzable cards pushed to Anki.";
+  document.getElementById("generateBtn").textContent = isReference
+    ? "📖 Generate Reference Page"
+    : "✨ Generate Cards";
 }
 
 function renderAnkiConnectStatus() {
@@ -420,59 +436,110 @@ function renderTopicTree(node, cards) {
   );
 }
 
-function renderLibraryArticles(cards) {
-  if (cards.length === 0) {
-    return `<div class="empty-state">No cards match here yet.</div>`;
+function renderReferenceArticle(n) {
+  const images = n.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
+  const tagChips = n.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
+  return `
+  <article class="wiki-card wiki-reference" data-ref-id="${escapeHtml(n.id)}">
+    <div class="wiki-kind-row">
+      <span class="card-type-pill reference-pill">📖 Reference</span>
+      <button class="icon-btn" data-action="delete-reference">Delete</button>
+    </div>
+    <h3 class="wiki-title">${escapeHtml(n.title)}</h3>
+    ${n.summary ? `<p class="wiki-summary">${escapeHtml(n.summary)}</p>` : ""}
+    ${n.body ? `<div class="wiki-body">${n.body}</div>` : ""}
+    ${images ? `<div class="card-images">${images}</div>` : ""}
+    <div class="wiki-meta">${tagChips}</div>
+  </article>`;
+}
+
+function renderCardArticle(c) {
+  const isCloze = c.card_type === "cloze";
+  const heading = isCloze ? renderClozePreview(c.cloze_text) : c.question;
+  const answerBlock = isCloze ? "" : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
+  const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
+  const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
+  return `
+  <article class="wiki-card">
+    <h3 class="wiki-question">${heading}</h3>
+    ${answerBlock}
+    ${c.explanation ? `<div class="wiki-explanation">${c.explanation}</div>` : ""}
+    ${images ? `<div class="card-images">${images}</div>` : ""}
+    <div class="wiki-meta">
+      <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
+      ${tagChips}
+      <span class="wiki-deck">Deck: ${escapeHtml(c.deck)}</span>
+    </div>
+  </article>`;
+}
+
+function renderLibraryArticles(notes, cards) {
+  if (notes.length === 0 && cards.length === 0) {
+    return `<div class="empty-state">Nothing here yet.</div>`;
   }
-  return cards
-    .map((c) => {
-      const isCloze = c.card_type === "cloze";
-      const heading = isCloze ? renderClozePreview(c.cloze_text) : c.question;
-      const answerBlock = isCloze ? "" : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
-      const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
-      const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
-      return `
-      <article class="wiki-card">
-        <h3 class="wiki-question">${heading}</h3>
-        ${answerBlock}
-        ${c.explanation ? `<div class="wiki-explanation">${c.explanation}</div>` : ""}
-        ${images ? `<div class="card-images">${images}</div>` : ""}
-        <div class="wiki-meta">
-          <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
-          ${tagChips}
-          <span class="wiki-deck">Deck: ${escapeHtml(c.deck)}</span>
-        </div>
-      </article>`;
-    })
-    .join("");
+  // Reference pages first: they're the "read about this topic" content, so
+  // they read as the article and the cards below as its drill questions.
+  const parts = [];
+  if (notes.length > 0) {
+    parts.push(notes.map(renderReferenceArticle).join(""));
+  }
+  if (cards.length > 0) {
+    if (notes.length > 0) {
+      parts.push(`<h3 class="library-section-heading">Flashcards on this topic (${cards.length})</h3>`);
+    }
+    parts.push(cards.map(renderCardArticle).join(""));
+  }
+  return parts.join("");
+}
+
+function matchesLibraryQuery(item, query) {
+  const haystack = [
+    item.question, item.answer, item.cloze_text, item.explanation,
+    item.title, item.summary, item.body,
+    (item.tags || []).join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
 }
 
 function getVisibleLibraryCards() {
+  if (libraryState.kind === "reference") return [];
   let cards = cardsUnderPath(state.cards, libraryState.selectedPath);
   const query = libraryState.search.trim().toLowerCase();
-  if (query) {
-    cards = cards.filter((c) => {
-      const haystack = [c.question, c.answer, c.cloze_text, c.explanation, c.tags.join(" ")]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(query);
-    });
-  }
+  if (query) cards = cards.filter((c) => matchesLibraryQuery(c, query));
   return cards;
 }
 
+function getVisibleReferenceNotes() {
+  if (libraryState.kind === "cards") return [];
+  let notes = cardsUnderPath(state.referenceNotes, libraryState.selectedPath);
+  const query = libraryState.search.trim().toLowerCase();
+  if (query) notes = notes.filter((n) => matchesLibraryQuery(n, query));
+  return notes;
+}
+
 function renderLibrary() {
-  const tree = buildTagTree(state.cards);
+  // The topic tree spans both content kinds, so a topic that only has
+  // reference pages still shows up (and vice versa).
+  const treeItems = [...state.referenceNotes, ...state.cards];
+  const tree = buildTagTree(treeItems);
   const allActive = !libraryState.selectedPath ? "active" : "";
   document.getElementById("topicTree").innerHTML =
     `<button class="topic-node topic-node-all ${allActive}" data-path="">
        <span class="topic-name">All topics</span>
-       <span class="topic-count">${state.cards.length}</span>
-     </button>` + renderTopicTree(tree, state.cards);
+       <span class="topic-count">${treeItems.length}</span>
+     </button>` + renderTopicTree(tree, treeItems);
 
+  document.querySelectorAll("#libraryKindFilter button").forEach((b) => {
+    b.classList.toggle("active", b.dataset.kind === libraryState.kind);
+  });
+
+  const notes = getVisibleReferenceNotes();
   const cards = getVisibleLibraryCards();
   document.getElementById("libraryHeading").textContent = libraryState.selectedPath || "All topics";
-  document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(cards);
+  document.getElementById("libraryArticles").innerHTML = renderLibraryArticles(notes, cards);
 }
 
 // Re-roots each card's own tags under `newDeck` (using that card's current
@@ -767,6 +834,52 @@ function wireEvents() {
       .forEach((b) => b.classList.toggle("active", b === btn));
   });
 
+  document.getElementById("outputModeToggle").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-output-mode]");
+    if (!btn) return;
+    state.outputMode = btn.dataset.outputMode;
+    document
+      .querySelectorAll("#outputModeToggle button")
+      .forEach((b) => b.classList.toggle("active", b === btn));
+    renderOutputMode();
+  });
+
+  document.getElementById("libraryKindFilter").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-kind]");
+    if (!btn) return;
+    libraryState.kind = btn.dataset.kind;
+    renderLibrary();
+  });
+
+  document.getElementById("libraryArticles").addEventListener("click", async (e) => {
+    if (e.target.dataset.action !== "delete-reference") return;
+    const article = e.target.closest("[data-ref-id]");
+    if (!article) return;
+    const id = article.dataset.refId;
+    if (!confirm("Delete this reference page? This can't be undone.")) return;
+    await api(`/api/reference/${id}`, { method: "DELETE" });
+    state.referenceNotes = state.referenceNotes.filter((n) => n.id !== id);
+    renderLibrary();
+    showToast("Reference page deleted.");
+  });
+
+  document.querySelector(".notes-toolbar").addEventListener("click", (e) => {
+    const btn = e.target.closest(".notes-tool-btn");
+    if (!btn) return;
+    const textarea = document.getElementById("dailyNotesText");
+    const prefix = { bullet: "• ", number: "1. ", indent: "    " }[btn.dataset.insert] || "";
+    const pos = textarea.selectionStart;
+    const before = textarea.value.slice(0, pos);
+    const after = textarea.value.slice(pos);
+    // Start a fresh line unless the cursor is already at the start of one.
+    const lead = before === "" || before.endsWith("\n") ? "" : "\n";
+    textarea.value = `${before}${lead}${prefix}${after}`;
+    const newPos = pos + lead.length + prefix.length;
+    textarea.setSelectionRange(newPos, newPos);
+    textarea.focus();
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
@@ -839,25 +952,30 @@ function wireEvents() {
     btn.disabled = true;
     btn.textContent = "Generating…";
     try {
-      await api("/api/generate", {
+      const result = await api("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           source_ids: sourceIds,
           deck: document.getElementById("deckNameInput").value || "My Deck",
           card_type: state.cardType,
+          output_mode: state.outputMode,
           subject_hint: document.getElementById("subjectHint").value || null,
           instructions: document.getElementById("instructions").value || null,
           max_cards: parseInt(document.getElementById("maxCards").value, 10) || 20,
         }),
       });
-      showToast("Cards generated.");
       await loadProject();
+      if (result.output_mode === "reference") {
+        showToast(`Reference page "${result.reference_note.title}" saved to your Library.`);
+      } else {
+        showToast(`Generated ${result.cards.length} card${result.cards.length === 1 ? "" : "s"}.`);
+      }
     } catch (err) {
       showToast(err.message, true);
     } finally {
       btn.disabled = false;
-      btn.textContent = "✨ Generate Cards";
+      renderOutputMode();
     }
   });
 
@@ -1043,4 +1161,5 @@ function wireEvents() {
 initTheme();
 wireEvents();
 attachAllDeckAutocompletes();
+renderOutputMode();
 loadProject();

@@ -17,6 +17,7 @@ def get_project():
         "sources": store.list_sources(),
         "media": store.list_media(),
         "cards": store.list_cards(),
+        "reference_notes": store.list_reference_notes(),
         "deck_name": store.get_deck_name(),
         "claude_configured": bool(config.ANTHROPIC_API_KEY),
         "daily_notes": store.get_daily_notes(),

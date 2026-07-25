@@ -81,6 +81,24 @@ def _strip_legacy_field_if_present(model_name: str) -> None:
             pass  # not fatal -- worst case the old field lingers, harmless
 
 
+def _refresh_model_templates(model_name: str, template_name: str, qfmt: str, afmt: str, css: str) -> None:
+    """Push the app's current templates/CSS onto a model that already exists
+    in Anki. createModel only runs once, so without this a template change
+    shipped later (e.g. the hide-all-guess-one cloze styling) would only
+    reach brand-new installs and never anyone who'd already pushed a card."""
+    try:
+        _invoke(
+            "updateModelTemplates",
+            model={"name": model_name, "templates": {template_name: {"Front": qfmt, "Back": afmt}}},
+        )
+    except AnkiConnectError:
+        pass  # older AnkiConnect may lack this action; existing cards still work
+    try:
+        _invoke("updateModelStyling", model={"name": model_name, "css": css})
+    except AnkiConnectError:
+        pass
+
+
 def _ensure_models() -> None:
     from . import anki_export  # reuse the exact same templates/css as .apkg export
 
@@ -97,6 +115,9 @@ def _ensure_models() -> None:
         )
     else:
         _strip_legacy_field_if_present(BASIC_SYNC_MODEL)
+        _refresh_model_templates(
+            BASIC_SYNC_MODEL, "Card 1", anki_export.BASIC_QFMT, anki_export.BASIC_AFMT, anki_export.CSS
+        )
 
     if not _model_exists(CLOZE_SYNC_MODEL):
         _invoke(
@@ -111,6 +132,9 @@ def _ensure_models() -> None:
         )
     else:
         _strip_legacy_field_if_present(CLOZE_SYNC_MODEL)
+        _refresh_model_templates(
+            CLOZE_SYNC_MODEL, "Cloze", anki_export.CLOZE_QFMT, anki_export.CLOZE_AFMT, anki_export.CSS
+        )
 
 
 def _upload_media(filename: str, path) -> None:

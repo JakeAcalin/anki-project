@@ -100,6 +100,132 @@ def caption_image(path: Path) -> Dict[str, Any]:
     return {"description": "", "highlighted_excerpts": []}
 
 
+REFERENCE_TOOL = {
+    "name": "emit_reference_page",
+    "description": (
+        "Emit a wiki-style reference page summarizing source material that the "
+        "reader wants to look up later, NOT be quizzed on."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": (
+                    "A short, specific page title naming the topic -- how the reader "
+                    "would search for this later. Under 8 words, no trailing period."
+                ),
+            },
+            "summary": {
+                "type": "string",
+                "description": (
+                    "One or two sentences stating what this page covers, for scanning "
+                    "a list of pages at a glance."
+                ),
+            },
+            "sections": {
+                "type": "array",
+                "description": (
+                    "The body, broken into sections. Preserve ALL substantive detail "
+                    "from the source -- this is a reference to look things up in, so "
+                    "completeness matters far more than brevity. Do not drop specifics, "
+                    "numbers, doses, names, caveats, or steps. Use several sections "
+                    "rather than one long one."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "heading": {
+                            "type": "string",
+                            "description": "Short section heading. Under 6 words.",
+                        },
+                        "points": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": (
+                                "Plain-text bullet points for this section (no HTML, no "
+                                "leading bullet characters). Wrap the single most "
+                                "important phrase in a point with ==double equals== to "
+                                "highlight it; use at most one per point and leave a "
+                                "point unmarked if nothing stands out. Start a point "
+                                "with '- ' to make it a sub-point nested under the "
+                                "point above it."
+                            ),
+                        },
+                        "ordered": {
+                            "type": "boolean",
+                            "description": (
+                                "True if this section's points are a sequence where "
+                                "order matters (steps in a procedure, an algorithm), "
+                                "so they render as a numbered list. False for an "
+                                "unordered set of facts."
+                            ),
+                        },
+                    },
+                    "required": ["heading", "points", "ordered"],
+                },
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "1-4 hierarchical tags using '::' to separate levels, e.g. "
+                    "'Airway::LMA::Complications'. Broad topic first, specific last."
+                ),
+            },
+        },
+        "required": ["title", "summary", "sections", "tags"],
+    },
+}
+
+
+def generate_reference_note(
+    *,
+    context_text: str,
+    subject_hint: Optional[str],
+    instructions: Optional[str],
+) -> Dict[str, Any]:
+    client = _get_client()
+
+    prompt_parts = [
+        "You are writing a personal reference page (like a wiki entry) from the "
+        "source material below. This is NOT flashcard material -- the reader wants "
+        "to look this up later, not be quizzed on it.",
+        "",
+        "Rules:",
+        "- Keep ALL substantive detail from the source. Reorganize and clarify it, "
+        "but do not summarize away specifics: numbers, doses, names, thresholds, "
+        "exceptions, and step-by-step procedures must survive.",
+        "- Structure it for fast scanning later: several short sections with clear "
+        "headings, bullet points rather than paragraphs.",
+        "- Use a numbered (ordered) section when the points are genuinely sequential "
+        "steps; otherwise use unordered points.",
+        "- If the source is a photo of a whiteboard, slide, or textbook page, "
+        "transcribe its actual content faithfully rather than describing the image "
+        "(don't write 'the whiteboard shows...', just record what it says).",
+        "- Write in the reader's own practical register: concise, concrete, no filler.",
+    ]
+    if subject_hint:
+        prompt_parts.append(f"- Root all tags under the subject '{subject_hint}' where sensible.")
+    if instructions:
+        prompt_parts.append(f"- Additional instructions from the user: {instructions}")
+
+    prompt_parts += ["", "SOURCE MATERIAL:", context_text]
+
+    message = client.messages.create(
+        model=config.CLAUDE_TEXT_MODEL,
+        max_tokens=8000,
+        tools=[REFERENCE_TOOL],
+        tool_choice={"type": "tool", "name": "emit_reference_page"},
+        messages=[{"role": "user", "content": "\n".join(prompt_parts)}],
+    )
+
+    for block in message.content:
+        if block.type == "tool_use" and block.name == "emit_reference_page":
+            return block.input
+    return {"title": "", "summary": "", "sections": [], "tags": []}
+
+
 _BASIC_CARD_PROPERTIES = {
     "question": {
         "type": "string",
@@ -209,6 +335,7 @@ def generate_cards(
     auto_count: bool,
     auto_count_cap: Optional[int] = None,
     has_truelearn_notes: bool = False,
+    source_count: int = 0,
 ) -> List[Dict[str, Any]]:
     client = _get_client()
 
@@ -248,6 +375,36 @@ def generate_cards(
             "concepts."
         )
 
+    if source_count > 1:
+        prompt_parts.append(
+            f"- There are {source_count} separate sources below, each marked with its own "
+            "'== Source: ... ==' header. EVERY source must be represented by at least one "
+            "card -- do not skip a source or fold several sources into a single card just "
+            "because they seem related. Work through them one at a time and make sure none "
+            "is left without a card of its own."
+        )
+
+    # Card-quality rules distilled from the widely-used medical-Anki
+    # conventions (AnKing-style decks and SuperMemo's minimum information
+    # principle underneath them). These matter more than they look: a card
+    # that tests two things at once gets stuck at the pace of its harder
+    # half, which is exactly what makes a deck feel unreviewable.
+    prompt_parts += [
+        "- MINIMUM INFORMATION PRINCIPLE: each card tests exactly one fact. If a card "
+        "would need 'and' to state what it's testing, split it into two cards.",
+        "- Never test a bare enumeration as one unit ('name all 6 H's'). Recall of a "
+        "long list in one shot is the classic unlearnable card -- break the list "
+        "apart so each item is tested individually.",
+        "- Every card must stand alone. Someone seeing it cold, months later, with no "
+        "memory of the source, should be able to tell what's being asked. Include the "
+        "orienting context (the drug class, the setting, the patient population) "
+        "inside the card rather than assuming it.",
+        "- Avoid cards whose answer is yes/no or otherwise guessable at better than "
+        "chance; ask for the specific term, number, or mechanism instead.",
+        "- Prefer testing understanding (why/how/what distinguishes) over verbatim "
+        "wording, except where the exact number, dose, or name IS the fact.",
+    ]
+
     if card_type == CardType.basic:
         prompt_parts.append(
             "- Each card must be atomic: one short question, one short answer. Favor many "
@@ -264,6 +421,17 @@ def generate_cards(
             "- Each card is a single cloze sentence ('cloze_text') that tests one atomic "
             "fact. Favor many small cards over cramming multiple unrelated facts into one "
             "sentence."
+        )
+        prompt_parts.append(
+            "- When the material IS a named list or mnemonic that has to be learned as a "
+            "set (the H's and T's of cardiac arrest, the components of a score, the steps "
+            "of an algorithm), don't reduce it to one card asking for the whole list, and "
+            "don't split it across unrelated cards either. Write ONE cloze_text that names "
+            "the list and then gives each member its own consecutive blank -- "
+            "{{c1::first::hint}}, {{c2::second::hint}}, {{c3::third::hint}} and so on. "
+            "Anki turns that into one card per member, so they're learned one at a time "
+            "while staying anchored to the list they belong to. Number them in the list's "
+            "conventional order if it has one."
         )
 
     prompt_parts.append(

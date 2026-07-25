@@ -35,6 +35,16 @@ class CardType(str, Enum):
     cloze = "cloze"
 
 
+class OutputMode(str, Enum):
+    """What a batch of sources should become. Not everything worth keeping
+    is worth quizzing -- a whiteboard photo, a chapter you just read, or a
+    practical tip picked up in the OR are all things to look up later, not
+    drill, so they become a reference page instead of flashcards."""
+
+    cards = "cards"
+    reference = "reference"
+
+
 class MediaItem(BaseModel):
     id: str = Field(default_factory=lambda: new_id("media"))
     filename: str
@@ -82,6 +92,19 @@ class CardDraft(BaseModel):
     created_at: float = Field(default_factory=time.time)
 
 
+class ReferenceNote(BaseModel):
+    """A wiki-style page kept for looking things up, never pushed to Anki."""
+
+    id: str = Field(default_factory=lambda: new_id("ref"))
+    title: str = ""
+    summary: str = ""
+    body: str = ""  # rendered HTML, built server-side from plain-text sections
+    tags: List[str] = Field(default_factory=list)
+    media_ids: List[str] = Field(default_factory=list)
+    source_ids: List[str] = Field(default_factory=list)
+    created_at: float = Field(default_factory=time.time)
+
+
 class DailyNotes(BaseModel):
     text: str = ""
     processed_length: int = 0
@@ -98,6 +121,7 @@ class Project(BaseModel):
     sources: List[Source] = Field(default_factory=list)
     media: List[MediaItem] = Field(default_factory=list)
     cards: List[CardDraft] = Field(default_factory=list)
+    reference_notes: List[ReferenceNote] = Field(default_factory=list)
     deck_name: str = "My Deck"
     daily_notes: DailyNotes = Field(default_factory=DailyNotes)
     migrated_tag_root: bool = False
@@ -113,6 +137,7 @@ class GenerateRequest(BaseModel):
     source_ids: List[str]
     deck: str = "My Deck"
     card_type: CardType = CardType.basic
+    output_mode: OutputMode = OutputMode.cards
     subject_hint: Optional[str] = None
     instructions: Optional[str] = None
     max_cards: int = 20

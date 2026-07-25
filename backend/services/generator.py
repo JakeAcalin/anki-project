@@ -8,7 +8,16 @@ from pathlib import Path
 from typing import List, Optional
 
 from .. import config
-from ..models import CardDraft, CardType, MediaItem, MediaKind, Source, SourceStatus, SourceType
+from ..models import (
+    CardDraft,
+    CardType,
+    MediaItem,
+    MediaKind,
+    ReferenceNote,
+    Source,
+    SourceStatus,
+    SourceType,
+)
 from ..storage import store
 from . import claude_client, transcription, truelearn_import, video
 
@@ -152,6 +161,51 @@ def _render_question_html(text: str) -> str:
     return escaped
 
 
+def _render_reference_body(sections: List[dict]) -> str:
+    """Same escape-first-then-convert pattern as _render_explanation, but
+    for multi-section reference pages: headings, ordered/unordered lists,
+    and one level of nesting (a point starting with '- ' hangs under the
+    previous one)."""
+    out = []
+    for section in sections or []:
+        if not isinstance(section, dict):
+            continue
+        heading = str(section.get("heading", "")).strip()
+        points = [p for p in section.get("points", []) if isinstance(p, str) and p.strip()]
+        if not heading and not points:
+            continue
+        if heading:
+            out.append(f"<h4>{html.escape(heading)}</h4>")
+
+        list_tag = "ol" if section.get("ordered") else "ul"
+        items = []
+        for raw in points:
+            text = raw.strip()
+            nested = text.startswith("- ")
+            if nested:
+                text = text[2:].strip()
+            escaped = _HIGHLIGHT_RE.sub(r"<mark>\1</mark>", html.escape(text))
+            items.append((nested, escaped))
+
+        if not items:
+            continue
+        html_parts = [f"<{list_tag}>"]
+        open_nested = False
+        for nested, escaped in items:
+            if nested and not open_nested:
+                html_parts.append("<ul>")
+                open_nested = True
+            elif not nested and open_nested:
+                html_parts.append("</ul>")
+                open_nested = False
+            html_parts.append(f"<li>{escaped}</li>")
+        if open_nested:
+            html_parts.append("</ul>")
+        html_parts.append(f"</{list_tag}>")
+        out.append("".join(html_parts))
+    return "".join(out)
+
+
 def _apply_tag_root(tags: List[str], root: str) -> List[str]:
     """Prepend `root` to every tag so the deck name is always the shared
     parent in Anki's tag tree (e.g. root='Pharm' turns 'CardiacDrugs' into
@@ -182,14 +236,7 @@ def _strip_tag_root(tags: List[str], root: str) -> List[str]:
     return stripped
 
 
-def build_cards_from_sources(
-    source_ids: List[str],
-    deck: str,
-    card_type: CardType,
-    subject_hint: Optional[str],
-    instructions: Optional[str],
-    max_cards: int,
-) -> List[CardDraft]:
+def _load_ready_sources(source_ids: List[str]) -> List[Source]:
     sources = [store.get_source(sid) for sid in source_ids]
     sources = [s for s in sources if s is not None]
     if not sources:
@@ -198,7 +245,10 @@ def build_cards_from_sources(
     not_ready = [s.name for s in sources if s.status != SourceStatus.done]
     if not_ready:
         raise ValueError(f"These sources are not processed yet: {', '.join(not_ready)}")
+    return sources
 
+
+def _build_context_chunks(sources: List[Source]) -> List[str]:
     context_chunks = []
     for s in sources:
         header = f"== Source: {s.name} ({s.type.value}) =="
@@ -227,6 +277,19 @@ def build_cards_from_sources(
                 )
 
         context_chunks.append(chunk)
+    return context_chunks
+
+
+def build_cards_from_sources(
+    source_ids: List[str],
+    deck: str,
+    card_type: CardType,
+    subject_hint: Optional[str],
+    instructions: Optional[str],
+    max_cards: int,
+) -> List[CardDraft]:
+    sources = _load_ready_sources(source_ids)
+    context_chunks = _build_context_chunks(sources)
 
     # Only count a TrueLearn source once it actually has new (undeduped) rows
     # -- a fully-deduped source (0 new rows) shouldn't force auto_count on
@@ -242,16 +305,21 @@ def build_cards_from_sources(
         # no ceiling at all and it would sometimes split a single row's note
         # into several atomic cards, badly over-producing.
         auto_count_cap = sum(len(s.highlighted_excerpts) for s in sources) + truelearn_row_count
+        # Never let the cap fall below the number of sources, or a batch of
+        # (say) 5 photos where only 2 had detectable highlights could only
+        # ever produce 2 cards -- silently dropping the other 3 photos.
+        auto_count_cap = max(auto_count_cap, len(sources))
 
     raw_cards = claude_client.generate_cards(
         context_text="\n\n".join(context_chunks),
         card_type=card_type,
         subject_hint=subject_hint,
         instructions=instructions,
-        max_cards=max_cards,
+        max_cards=max(max_cards, len(sources)),
         auto_count=auto_count,
         auto_count_cap=auto_count_cap,
         has_truelearn_notes=has_truelearn_notes,
+        source_count=len(sources),
     )
 
     cards = []
@@ -291,6 +359,45 @@ def build_cards_from_sources(
         store.add_truelearn_seen_ids(truelearn_ids)
 
     return cards
+
+
+def build_reference_from_sources(
+    source_ids: List[str],
+    deck: str,
+    subject_hint: Optional[str],
+    instructions: Optional[str],
+) -> ReferenceNote:
+    """Turn a batch of sources into one wiki-style reference page instead of
+    flashcards -- for material worth keeping and looking up (a whiteboard
+    photo, a chapter you just read, a practical tip) but not worth drilling."""
+    sources = _load_ready_sources(source_ids)
+    context_chunks = _build_context_chunks(sources)
+
+    raw = claude_client.generate_reference_note(
+        context_text="\n\n".join(context_chunks),
+        subject_hint=subject_hint,
+        instructions=instructions,
+    )
+
+    tags = [t.strip() for t in raw.get("tags", []) if isinstance(t, str) and t.strip()]
+    # Reference pages live in the Library next to cards from the same deck,
+    # so they get the same deck-rooted tag tree to sort alongside them.
+    tags = _apply_tag_root(tags, deck)
+
+    # Carry over the images themselves (the whiteboard photo, the textbook
+    # page) so the page can show the original next to the transcription.
+    media_ids = [mid for s in sources for mid in s.media_ids]
+
+    note = ReferenceNote(
+        title=(raw.get("title") or "Untitled note").strip(),
+        summary=(raw.get("summary") or "").strip(),
+        body=_render_reference_body(raw.get("sections", [])),
+        tags=tags,
+        media_ids=media_ids,
+        source_ids=source_ids,
+    )
+    store.add_reference_notes([note])
+    return note
 
 
 def _is_daily_notes_card(card: CardDraft) -> bool:

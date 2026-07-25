@@ -8,7 +8,17 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import migrations, scheduler
 from .auth import BasicAuthMiddleware
-from .routers import ankiconnect, cards, daily_notes, export, generate, media, project, sources
+from .routers import (
+    ankiconnect,
+    cards,
+    daily_notes,
+    export,
+    generate,
+    media,
+    project,
+    reference,
+    sources,
+)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 logger = logging.getLogger(__name__)
@@ -40,6 +50,7 @@ app.include_router(export.router)
 app.include_router(project.router)
 app.include_router(ankiconnect.router)
 app.include_router(daily_notes.router)
+app.include_router(reference.router)
 
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
