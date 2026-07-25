@@ -23,6 +23,7 @@ class AnkiConnectError(RuntimeError):
 
 BASIC_SYNC_MODEL = "Anki Media Generator - Basic (Synced)"
 CLOZE_SYNC_MODEL = "Anki Media Generator - Cloze (Synced)"
+SEQUENCE_SYNC_MODEL = "Anki Media Generator - Sequence (Synced)"
 
 # Older pushes stamped a hidden field onto notes for matching purposes.
 # That's no longer needed (see module docstring) and cluttered Anki's note
@@ -136,6 +137,30 @@ def _ensure_models() -> None:
             CLOZE_SYNC_MODEL, "Cloze", anki_export.CLOZE_QFMT, anki_export.CLOZE_AFMT, anki_export.CSS
         )
 
+    if not _model_exists(SEQUENCE_SYNC_MODEL):
+        _invoke(
+            "createModel",
+            modelName=SEQUENCE_SYNC_MODEL,
+            inOrderFields=["Prompt", "Items", "Explanation", "Images"],
+            css=anki_export.CSS,
+            isCloze=False,
+            cardTemplates=[
+                {
+                    "Name": "Sequence",
+                    "Front": anki_export.SEQUENCE_QFMT,
+                    "Back": anki_export.SEQUENCE_AFMT,
+                }
+            ],
+        )
+    else:
+        _refresh_model_templates(
+            SEQUENCE_SYNC_MODEL,
+            "Sequence",
+            anki_export.SEQUENCE_QFMT,
+            anki_export.SEQUENCE_AFMT,
+            anki_export.CSS,
+        )
+
 
 def _upload_media(filename: str, path) -> None:
     data = base64.standard_b64encode(path.read_bytes()).decode("ascii")
@@ -173,7 +198,17 @@ def push_cards(cards: List[Any]) -> Dict[str, Any]:
                 _upload_media(media.filename, media_path)
                 images_html += f'<img src="{media.filename}">'
 
-            if card.card_type == CardType.cloze:
+            if card.card_type == CardType.sequence:
+                from . import anki_export
+
+                model_name = SEQUENCE_SYNC_MODEL
+                fields = {
+                    "Prompt": card.sequence_prompt,
+                    "Items": anki_export.render_sequence_items(card.sequence_items),
+                    "Explanation": card.explanation,
+                    "Images": images_html,
+                }
+            elif card.card_type == CardType.cloze:
                 model_name = CLOZE_SYNC_MODEL
                 fields = {
                     "Text": card.cloze_text,

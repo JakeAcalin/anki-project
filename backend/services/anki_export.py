@@ -20,6 +20,7 @@ from ..storage import store
 
 BASIC_MODEL_NAME = "Anki Media Generator - Basic"
 CLOZE_MODEL_NAME = "Anki Media Generator - Cloze"
+SEQUENCE_MODEL_NAME = "Anki Media Generator - Sequence"
 
 CSS = """
 .card {
@@ -74,6 +75,69 @@ hr#answer { margin: 16px 0; border: none; border-top: 1px solid #ddd; }
   color: #b9b9c4;
   font-weight: 600;
 }
+
+/* Sequence cards: one card holding a whole list, revealed a step at a
+   time via the button below it. */
+.seq-prompt { font-size: 22px; font-weight: 600; margin-bottom: 14px; }
+.seq-list { margin: 0; padding-left: 26px; font-size: 20px; line-height: 1.6; }
+.seq-list li { margin: 6px 0; }
+.seq-list li.seq-hidden > .seq-text { visibility: hidden; }
+.seq-list li.seq-hidden::marker { color: #b9b9c4; }
+.seq-list li.seq-hidden > .seq-placeholder { display: inline; }
+.seq-list li > .seq-placeholder { display: none; color: #b9b9c4; font-weight: 600; }
+.seq-list li.seq-revealed > .seq-text { color: #0b5fff; font-weight: 600; }
+.seq-controls { margin-top: 18px; }
+#seq-next {
+  font: inherit; font-size: 16px; font-weight: 600;
+  padding: 8px 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid #0b5fff; background: #eaf1ff; color: #0b5fff;
+}
+#seq-next:disabled { opacity: .45; cursor: default; }
+.seq-progress { font-size: 14px; color: #7a7a86; margin-left: 10px; }
+"""
+
+# Kept out of the CSS/template strings so both the .apkg export and the
+# AnkiConnect push share exactly one copy of the reveal logic.
+SEQUENCE_JS = """
+<script>
+(function () {
+  var list = document.getElementById('seq-list');
+  if (!list) return;
+  var items = Array.prototype.slice.call(list.querySelectorAll('li'));
+  var btn = document.getElementById('seq-next');
+  var progress = document.getElementById('seq-progress');
+  var revealAll = list.dataset.revealAll === '1';
+  var next = 0;
+
+  function paint() {
+    if (progress) progress.textContent = next + ' / ' + items.length;
+    if (btn) btn.disabled = next >= items.length;
+  }
+
+  if (revealAll) {
+    items.forEach(function (li) {
+      li.classList.remove('seq-hidden');
+      li.classList.add('seq-revealed');
+    });
+    next = items.length;
+  } else {
+    items.forEach(function (li) { li.classList.add('seq-hidden'); });
+  }
+  paint();
+
+  if (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (next >= items.length) return;
+      items[next].classList.remove('seq-hidden');
+      items[next].classList.add('seq-revealed');
+      next++;
+      paint();
+    });
+  }
+})();
+</script>
 """
 
 BASIC_QFMT = '<div class="question">{{Question}}</div>'
@@ -83,6 +147,21 @@ BASIC_AFMT = (
     '<div class="answer">{{Answer}}</div>'
     '{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}'
     '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}'
+)
+
+SEQUENCE_QFMT = (
+    '<div class="seq-prompt">{{Prompt}}</div>'
+    '<ol id="seq-list" class="seq-list" data-reveal-all="0">{{Items}}</ol>'
+    '<div class="seq-controls">'
+    '<button id="seq-next" type="button">Reveal next</button>'
+    '<span id="seq-progress" class="seq-progress"></span>'
+    "</div>" + SEQUENCE_JS
+)
+SEQUENCE_AFMT = (
+    '<div class="seq-prompt">{{Prompt}}</div>'
+    '<ol id="seq-list" class="seq-list" data-reveal-all="1">{{Items}}</ol>'
+    '{{#Explanation}}<div class="explanation">{{Explanation}}</div>{{/Explanation}}'
+    '{{#Images}}<div class="answer-images">{{Images}}</div>{{/Images}}' + SEQUENCE_JS
 )
 
 CLOZE_QFMT = '<div class="cloze-text cloze-question">{{cloze:Text}}</div>'
@@ -113,6 +192,36 @@ def _build_basic_model() -> genanki.Model:
     )
 
 
+def _build_sequence_model() -> genanki.Model:
+    return genanki.Model(
+        _stable_id(SEQUENCE_MODEL_NAME),
+        SEQUENCE_MODEL_NAME,
+        fields=[
+            {"name": "Prompt"},
+            {"name": "Items"},
+            {"name": "Explanation"},
+            {"name": "Images"},
+        ],
+        templates=[{"name": "Sequence", "qfmt": SEQUENCE_QFMT, "afmt": SEQUENCE_AFMT}],
+        css=CSS,
+    )
+
+
+def render_sequence_items(items: List[str]) -> str:
+    """One <li> per list member, each carrying a hidden-until-revealed span
+    plus a visible placeholder. Built here rather than by the model so the
+    escaping is guaranteed."""
+    import html as _html
+
+    out = []
+    for item in items:
+        text = _html.escape((item or "").strip())
+        if not text:
+            continue
+        out.append(f'<li><span class="seq-placeholder">[ ? ]</span><span class="seq-text">{text}</span></li>')
+    return "".join(out)
+
+
 def _build_cloze_model() -> genanki.Model:
     return genanki.Model(
         _stable_id(CLOZE_MODEL_NAME),
@@ -134,6 +243,7 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
 
     basic_model = _build_basic_model()
     cloze_model = _build_cloze_model()
+    sequence_model = _build_sequence_model()
     decks_by_name = {}
     media_paths_by_filename = {}  # dedupe: a shared image must appear once in the package
 
@@ -153,7 +263,19 @@ def export_cards(cards: List[CardDraft], out_filename: str) -> Path:
             media_paths_by_filename[media.filename] = str(media_path)
             images_html += f'<img src="{media.filename}">'
 
-        if card.card_type == CardType.cloze:
+        if card.card_type == CardType.sequence:
+            note = genanki.Note(
+                model=sequence_model,
+                fields=[
+                    card.sequence_prompt,
+                    render_sequence_items(card.sequence_items),
+                    card.explanation,
+                    images_html,
+                ],
+                tags=[t.replace(" ", "_") for t in card.tags],
+                guid=genanki.guid_for(card.id),
+            )
+        elif card.card_type == CardType.cloze:
             note = genanki.Note(
                 model=cloze_model,
                 fields=[card.cloze_text, card.explanation, images_html],

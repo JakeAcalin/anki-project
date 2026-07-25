@@ -332,7 +332,20 @@ def build_cards_from_sources(
             deck=deck,
             source_ids=source_ids,
         )
-        if card_type == CardType.basic:
+        if card_type == CardType.sequence:
+            items = [
+                i.strip() for i in raw.get("sequence_items", []) if isinstance(i, str) and i.strip()
+            ]
+            if len(items) < 2:
+                continue  # a "list" of one isn't a list; drop rather than ship a broken card
+            cards.append(
+                CardDraft(
+                    sequence_prompt=raw.get("sequence_prompt", "").strip(),
+                    sequence_items=items,
+                    **common,
+                )
+            )
+        elif card_type == CardType.basic:
             cards.append(
                 CardDraft(
                     question=_render_question_html(raw.get("question", "")),

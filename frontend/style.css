@@ -390,6 +390,10 @@ button { cursor: pointer; font-family: inherit; appearance: none; border: none; 
   font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-muted); font-weight: 700; margin: 10px 0 0 2px;
 }
+.seq-preview { margin: 4px 0 4px 22px; padding: 0; }
+.seq-preview li { margin: 4px 0; color: var(--text); }
+.seq-preview li::marker { color: var(--accent-soft-text); font-weight: 700; }
+
 .library-kind-filter { margin-bottom: 10px; }
 .library-kind-filter button { font-size: 12px; padding: 6px 4px; }
 

@@ -14,6 +14,8 @@ class CardUpdate(BaseModel):
     question: Optional[str] = None
     answer: Optional[str] = None
     cloze_text: Optional[str] = None
+    sequence_prompt: Optional[str] = None
+    sequence_items: Optional[List[str]] = None
     explanation: Optional[str] = None
     tags: Optional[List[str]] = None
     media_ids: Optional[List[str]] = None

@@ -33,6 +33,10 @@ class MediaKind(str, Enum):
 class CardType(str, Enum):
     basic = "basic"
     cloze = "cloze"
+    # A whole list on ONE card, revealed a step at a time. Anki's native
+    # cloze can't do this: {{c1}}/{{c2}}/{{c3}} always splits into separate
+    # cards, and putting every item on {{c1}} reveals them all at once.
+    sequence = "sequence"
 
 
 class OutputMode(str, Enum):
@@ -81,6 +85,10 @@ class CardDraft(BaseModel):
     question: str = ""
     answer: str = ""
     cloze_text: str = ""
+    # sequence cards only: the prompt naming the list, and its members in
+    # the order they should be revealed.
+    sequence_prompt: str = ""
+    sequence_items: List[str] = Field(default_factory=list)
     explanation: str = ""
     tags: List[str] = Field(default_factory=list)
     media_ids: List[str] = Field(default_factory=list)

@@ -183,6 +183,17 @@ function attachAllDeckAutocompletes(root = document) {
   root.querySelectorAll(".deck-autocomplete input").forEach(attachDeckAutocomplete);
 }
 
+const CARD_TYPE_HINTS = {
+  basic: "One question, one answer.",
+  cloze: "A sentence with a word or two blanked out.",
+  sequence:
+    "A whole list on ONE card — everything hidden, revealed one item at a time. For mnemonics, scored criteria, and protocol steps.",
+};
+
+function renderCardTypeHint() {
+  document.getElementById("cardTypeHint").textContent = CARD_TYPE_HINTS[state.cardType] || "";
+}
+
 function renderOutputMode() {
   const isReference = state.outputMode === "reference";
   document.getElementById("cardOnlyOptions").classList.toggle("hidden", isReference);
@@ -308,6 +319,16 @@ function renderTagCloud() {
     .join("");
 }
 
+function renderSequencePreview(items) {
+  const list = (items || []).filter((i) => i && i.trim());
+  if (list.length === 0) return `<em>(no items yet)</em>`;
+  return (
+    `<ol class="seq-preview">` +
+    list.map((i) => `<li>${escapeHtml(i.trim())}</li>`).join("") +
+    `</ol>`
+  );
+}
+
 function renderClozePreview(text) {
   const escaped = escapeHtml(text || "");
   return escaped.replace(
@@ -333,7 +354,17 @@ function renderCards() {
         .map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`)
         .join("");
       const isCloze = c.card_type === "cloze";
-      const frontFields = isCloze
+      const isSequence = c.card_type === "sequence";
+      const frontFields = isSequence
+        ? `
+            <div class="card-field-label">Prompt (names the list)</div>
+            <textarea data-field="sequence_prompt">${escapeHtml(c.sequence_prompt || "")}</textarea>
+            <div class="card-field-label">List items — one per line, in order</div>
+            <p class="field-hint" style="margin: -4px 0 2px 0;">All hidden on the front; revealed one at a time.</p>
+            <textarea class="explanation" data-field="sequence_items">${escapeHtml((c.sequence_items || []).join("\n"))}</textarea>
+            <div class="card-field-label">Preview</div>
+            <div class="explanation-preview" data-preview="sequence_items">${renderSequencePreview(c.sequence_items)}</div>`
+        : isCloze
         ? `
             <div class="card-field-label">Cloze text</div>
             <p class="field-hint" style="margin: -4px 0 2px 0;">Wrap the hidden part in <code>{{c1::like this}}</code>.</p>
@@ -354,7 +385,7 @@ function renderCards() {
         <div class="card-item-top">
           <input type="checkbox" data-field="included" ${c.included ? "checked" : ""} title="Include in export" />
           <div class="card-fields">
-            <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
+            <span class="card-type-pill">${isSequence ? "List" : isCloze ? "Cloze" : "Basic"}</span>
             ${frontFields}
             <div class="card-field-label">Explanation (answer-side detail — edit as HTML source)</div>
             <textarea class="explanation" data-field="explanation">${escapeHtml(c.explanation)}</textarea>
@@ -455,8 +486,17 @@ function renderReferenceArticle(n) {
 
 function renderCardArticle(c) {
   const isCloze = c.card_type === "cloze";
-  const heading = isCloze ? renderClozePreview(c.cloze_text) : c.question;
-  const answerBlock = isCloze ? "" : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
+  const isSequence = c.card_type === "sequence";
+  const heading = isSequence
+    ? escapeHtml(c.sequence_prompt || "")
+    : isCloze
+    ? renderClozePreview(c.cloze_text)
+    : c.question;
+  const answerBlock = isSequence
+    ? renderSequencePreview(c.sequence_items)
+    : isCloze
+    ? ""
+    : `<div class="wiki-answer">${escapeHtml(c.answer)}</div>`;
   const images = c.media_ids.map((mid) => `<img src="${mediaUrl(mid)}" alt="" />`).join("");
   const tagChips = c.tags.map((t) => `<span class="tag-chip">${escapeHtml(t)}</span>`).join("");
   return `
@@ -466,7 +506,7 @@ function renderCardArticle(c) {
     ${c.explanation ? `<div class="wiki-explanation">${c.explanation}</div>` : ""}
     ${images ? `<div class="card-images">${images}</div>` : ""}
     <div class="wiki-meta">
-      <span class="card-type-pill">${isCloze ? "Cloze" : "Basic"}</span>
+      <span class="card-type-pill">${isSequence ? "List" : isCloze ? "Cloze" : "Basic"}</span>
       ${tagChips}
       <span class="wiki-deck">Deck: ${escapeHtml(c.deck)}</span>
     </div>
@@ -677,6 +717,11 @@ async function updateCard(id, field, value) {
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
+  } else if (field === "sequence_items") {
+    payload.sequence_items = value
+      .split("\n")
+      .map((i) => i.trim())
+      .filter(Boolean);
   } else if (field === "included") {
     payload.included = value;
   } else {
@@ -832,6 +877,7 @@ function wireEvents() {
     document
       .querySelectorAll("#cardTypeToggle button")
       .forEach((b) => b.classList.toggle("active", b === btn));
+    renderCardTypeHint();
   });
 
   document.getElementById("outputModeToggle").addEventListener("click", (e) => {
@@ -1011,14 +1057,18 @@ function wireEvents() {
 
   document.getElementById("addCardBtn").addEventListener("click", async () => {
     const isCloze = state.cardType === "cloze";
+    const isSequence = state.cardType === "sequence";
+    const isBasic = !isCloze && !isSequence;
     const card = await api("/api/cards", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         card_type: state.cardType,
-        question: isCloze ? "" : "New question",
-        answer: isCloze ? "" : "New answer",
+        question: isBasic ? "New question" : "",
+        answer: isBasic ? "New answer" : "",
         cloze_text: isCloze ? "This is an example {{c1::cloze deletion}}." : "",
+        sequence_prompt: isSequence ? "Name the items in this list" : "",
+        sequence_items: isSequence ? ["First item", "Second item", "Third item"] : [],
         explanation: "",
         tags: [],
         media_ids: [],
@@ -1044,11 +1094,17 @@ function wireEvents() {
 
   document.getElementById("cardList").addEventListener("input", (e) => {
     const field = e.target.dataset.field;
-    if (field !== "explanation" && field !== "cloze_text" && field !== "question") return;
+    if (!["explanation", "cloze_text", "question", "sequence_items"].includes(field)) return;
     const item = e.target.closest(".card-item");
     const preview = item.querySelector(`[data-preview="${field}"]`);
     if (!preview) return;
-    preview.innerHTML = field === "cloze_text" ? renderClozePreview(e.target.value) : e.target.value;
+    if (field === "cloze_text") {
+      preview.innerHTML = renderClozePreview(e.target.value);
+    } else if (field === "sequence_items") {
+      preview.innerHTML = renderSequencePreview(e.target.value.split("\n"));
+    } else {
+      preview.innerHTML = e.target.value;
+    }
   });
 
   document.getElementById("cardList").addEventListener("click", async (e) => {

@@ -273,6 +273,30 @@ _CLOZE_CARD_PROPERTIES = {
     },
 }
 
+_SEQUENCE_CARD_PROPERTIES = {
+    "sequence_prompt": {
+        "type": "string",
+        "description": (
+            "A short prompt naming the list being recalled, e.g. \"The H's of "
+            "reversible cardiac arrest\" or \"Steps of a rapid sequence induction\". "
+            "This stays visible; it must make clear what the reader is being asked "
+            "to enumerate, without giving away any member of the list."
+        ),
+    },
+    "sequence_items": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": (
+            "The members of the list, in the order they should be recalled (the "
+            "list's conventional order if it has one). Each entry is ONE member, "
+            "short -- a term or short phrase, optionally with a few words of "
+            "clarification after a colon, e.g. 'Hypovolemia: low blood volume'. "
+            "Do not number them; the card numbers them. Do not merge two members "
+            "into one entry or split one member across entries."
+        ),
+    },
+}
+
 _SHARED_CARD_PROPERTIES = {
     "explanation_points": {
         "type": "array",
@@ -301,8 +325,15 @@ _SHARED_CARD_PROPERTIES = {
 }
 
 
+_TYPE_PROPERTIES = {
+    CardType.basic: _BASIC_CARD_PROPERTIES,
+    CardType.cloze: _CLOZE_CARD_PROPERTIES,
+    CardType.sequence: _SEQUENCE_CARD_PROPERTIES,
+}
+
+
 def _build_card_tool(card_type: CardType, max_items: Optional[int] = None) -> Dict[str, Any]:
-    type_properties = _BASIC_CARD_PROPERTIES if card_type == CardType.basic else _CLOZE_CARD_PROPERTIES
+    type_properties = _TYPE_PROPERTIES.get(card_type, _BASIC_CARD_PROPERTIES)
     properties = {**type_properties, **_SHARED_CARD_PROPERTIES}
     cards_schema: Dict[str, Any] = {
         "type": "array",
@@ -390,11 +421,6 @@ def generate_cards(
     # that tests two things at once gets stuck at the pace of its harder
     # half, which is exactly what makes a deck feel unreviewable.
     prompt_parts += [
-        "- MINIMUM INFORMATION PRINCIPLE: each card tests exactly one fact. If a card "
-        "would need 'and' to state what it's testing, split it into two cards.",
-        "- Never test a bare enumeration as one unit ('name all 6 H's'). Recall of a "
-        "long list in one shot is the classic unlearnable card -- break the list "
-        "apart so each item is tested individually.",
         "- Every card must stand alone. Someone seeing it cold, months later, with no "
         "memory of the source, should be able to tell what's being asked. Include the "
         "orienting context (the drug class, the setting, the patient population) "
@@ -405,7 +431,31 @@ def generate_cards(
         "wording, except where the exact number, dose, or name IS the fact.",
     ]
 
-    if card_type == CardType.basic:
+    if card_type != CardType.sequence:
+        # Sequence cards exist precisely to hold a whole list, so this rule
+        # would contradict them.
+        prompt_parts += [
+            "- MINIMUM INFORMATION PRINCIPLE: each card tests exactly one fact. If a "
+            "card would need 'and' to state what it's testing, split it into two cards.",
+            "- Never test a bare enumeration as one unit ('name all 6 H's'). Recall of a "
+            "long list in one shot is the classic unlearnable card -- break the list "
+            "apart so each item is tested individually.",
+        ]
+
+    if card_type == CardType.sequence:
+        prompt_parts.append(
+            "- Every card here is a LIST card: one prompt naming a set or sequence, plus "
+            "its members in order. Only make a card for material that genuinely is a "
+            "named list worth reciting as a unit -- a mnemonic, the components of a "
+            "score, the steps of a protocol, a differential. Do not force unrelated "
+            "facts into list form; if the source has no real lists in it, return no "
+            "cards rather than inventing them."
+        )
+        prompt_parts.append(
+            "- Keep each member short and parallel in phrasing. Put any explanation of "
+            "why the list matters in 'explanation_points', not inside the members."
+        )
+    elif card_type == CardType.basic:
         prompt_parts.append(
             "- Each card must be atomic: one short question, one short answer. Favor many "
             "small cards over a few big ones — if a topic has several distinct facts, split "
@@ -423,15 +473,12 @@ def generate_cards(
             "sentence."
         )
         prompt_parts.append(
-            "- When the material IS a named list or mnemonic that has to be learned as a "
-            "set (the H's and T's of cardiac arrest, the components of a score, the steps "
-            "of an algorithm), don't reduce it to one card asking for the whole list, and "
-            "don't split it across unrelated cards either. Write ONE cloze_text that names "
-            "the list and then gives each member its own consecutive blank -- "
-            "{{c1::first::hint}}, {{c2::second::hint}}, {{c3::third::hint}} and so on. "
-            "Anki turns that into one card per member, so they're learned one at a time "
-            "while staying anchored to the list they belong to. Number them in the list's "
-            "conventional order if it has one."
+            "- Use at most TWO blanks in a sentence, and only when the two are a matched "
+            "pair that's meaningless apart (e.g. contrasting two drugs in one sentence). "
+            "Do NOT lay a whole list out as {{c1}}, {{c2}}, {{c3}}, ... -- Anki turns each "
+            "blank into its own separate card, which fragments the list. Named lists and "
+            "mnemonics are handled by the separate 'List' card type instead, so here just "
+            "skip them rather than trying to cram them into cloze form."
         )
 
     prompt_parts.append(

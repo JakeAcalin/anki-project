@@ -160,21 +160,29 @@ Hierarchical tags rely on Anki's native `::` nesting convention, so tags like
 `Biology::CellBiology::Photosynthesis` show up as a nested tree in Anki's
 tag sidebar. The same convention is used for deck names to create subdecks.
 
-### Card quality and list ("sequence") cards
+### Card types
 
-Card generation follows the conventions the big medical decks are built on
-— chiefly the minimum information principle: one fact per card, no card
-that needs "and" to say what it tests, every card standing on its own
+**Basic** (one question, one answer) and **Cloze** (a sentence with a word
+or two blanked out) work the way you'd expect.
+
+**List** is a third type for material that has to be learned as a set — a
+mnemonic, the components of a score, the steps of a protocol. It's a single
+Anki card holding the whole list: every item starts hidden as `[ ? ]`, and
+a **Reveal next** button uncovers them one at a time, in order, with a
+progress counter. The back shows the full list.
+
+This is deliberately *not* Anki's native cloze behaviour. Numbering blanks
+`{{c1::}}`, `{{c2::}}`, `{{c3::}}`… splits one list into N separate cards
+that come up on N unrelated days, and putting every item on `{{c1::}}`
+reveals them all at once. Neither is "recite this list," so List cards use
+their own note type (`Anki Media Generator - Sequence`) with the reveal
+logic in the template. Cloze generation is correspondingly told to stay
+away from long multi-blank sentences and leave lists to this type.
+
+Card generation otherwise follows the conventions the big medical decks are
+built on — chiefly the minimum information principle: one fact per card, no
+card that needs "and" to say what it tests, every card standing on its own
 months later with no memory of the source.
-
-Lists that have to be learned as a set (the H's and T's, the components of
-a score, the steps of an algorithm) are handled specially: instead of one
-unlearnable "name all six" card, the list gets one `{{c1::}}`, `{{c2::}}`,
-`{{c3::}}`… blank per member, which Anki turns into one card per item while
-keeping them anchored to the list they belong to. The cloze template also
-does **hide-all-guess-one** — on the front of such a card the *sibling*
-blanks stay hidden, so you can't read the rest of the list off the screen;
-the back reveals the whole list as context.
 
 ## Setup
 
