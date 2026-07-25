@@ -229,8 +229,10 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
 .deck-name-field {
   display: flex; align-items: center; gap: 0;
   border: 1px solid var(--border); border-radius: 999px;
-  background: var(--surface-2); overflow: hidden;
+  background: var(--surface-2);
   transition: border-color .15s ease, box-shadow .15s ease;
+  /* No overflow:hidden here -- it clips the absolutely-positioned
+     suggestion dropdown, which made the whole menu invisible. */
 }
 .deck-name-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .deck-field-label {
@@ -264,10 +266,23 @@ h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: v
   padding: 4px;
 }
 .deck-suggest-list.hidden { display: none; }
-.deck-suggest-item {
-  padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--text);
-  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.deck-suggest-head {
+  font-size: 10px; font-weight: 750; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-faint); padding: 8px 10px 4px 10px;
 }
+.deck-suggest-head:first-child { padding-top: 4px; }
+.deck-suggest-item {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--text);
+  cursor: pointer; overflow: hidden;
+}
+.deck-suggest-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deck-suggest-sub {
+  font-size: 11px; color: var(--text-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.deck-suggest-create .deck-suggest-label { color: var(--accent-soft-text); }
+.deck-suggest-create b { font-weight: 700; }
 .deck-suggest-item:hover { background: var(--accent-soft); color: var(--accent-soft-text); }
 
 @media (max-width: 640px) {

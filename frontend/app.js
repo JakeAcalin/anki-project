@@ -148,23 +148,69 @@ function attachDeckAutocomplete(input) {
   if (!list || input.dataset.autocompleteAttached) return;
   input.dataset.autocompleteAttached = "1";
 
-  function show() {
-    const query = input.value.trim().toLowerCase();
+  function deckRow(value, label, sub, cls = "") {
+    return `
+      <div class="deck-suggest-item ${cls}" data-value="${escapeHtml(value)}">
+        <span class="deck-suggest-label">${label}</span>
+        ${sub ? `<span class="deck-suggest-sub">${escapeHtml(sub)}</span>` : ""}
+      </div>`;
+  }
+
+  /** `showAll` is used when the field is first opened: the input still holds
+   *  the whole current deck path, so filtering by it would match only that
+   *  one deck and hide the list -- which looked like the dropdown was
+   *  broken. Opening should always show the full set to pick from. */
+  function show({ showAll = false } = {}) {
+    const raw = input.value.trim();
+    const query = showAll ? "" : raw.toLowerCase();
     const matches = state.ankiDecks.filter((d) => d.toLowerCase().includes(query));
-    if (matches.length === 0 || (matches.length === 1 && matches[0].toLowerCase() === query)) {
+    const exact = state.ankiDecks.some((d) => d.toLowerCase() === raw.toLowerCase());
+
+    const rows = [];
+    if (matches.length > 0) {
+      rows.push(`<div class="deck-suggest-head">Existing decks</div>`);
+      rows.push(...matches.slice(0, 50).map((d) => deckRow(d, escapeHtml(d))));
+    }
+
+    // Composing a new deck or subdeck. Nothing is created in Anki here --
+    // the deck is created on push -- so these rows just build the path.
+    const creates = [];
+    if (raw && !exact) {
+      creates.push(deckRow(raw, `＋ New deck <b>${escapeHtml(raw)}</b>`, "", "deck-suggest-create"));
+    }
+    const parent = state.deckName;
+    if (raw && !raw.includes("::") && parent && !exact) {
+      const branch = `${parent}::${raw}`;
+      // Skip the silly "Peds::Peds" case when you're already inside Peds.
+      const redundant = parent.split("::").pop().toLowerCase() === raw.toLowerCase();
+      if (!state.ankiDecks.includes(branch) && !redundant) {
+        creates.push(
+          deckRow(branch, `＋ New subdeck of <b>${escapeHtml(parent.split("::").pop())}</b>`, branch, "deck-suggest-create")
+        );
+      }
+    }
+    if (!raw && parent) {
+      creates.push(
+        deckRow(`${parent}::`, `＋ New subdeck under <b>${escapeHtml(parent.split("::").pop())}</b>…`, "", "deck-suggest-create")
+      );
+    }
+    if (creates.length) {
+      rows.push(`<div class="deck-suggest-head">Create</div>`);
+      rows.push(...creates);
+    }
+
+    if (rows.length === 0) {
       list.classList.add("hidden");
       list.innerHTML = "";
       return;
     }
-    list.innerHTML = matches
-      .slice(0, 20)
-      .map((d) => `<div class="deck-suggest-item" data-value="${escapeHtml(d)}">${escapeHtml(d)}</div>`)
-      .join("");
+    list.innerHTML = rows.join("");
     list.classList.remove("hidden");
   }
 
-  input.addEventListener("focus", show);
-  input.addEventListener("input", show);
+  input.addEventListener("focus", () => show({ showAll: true }));
+  input.addEventListener("input", () => show());
+  input.deckSuggestShowAll = () => show({ showAll: true });
   input.addEventListener("blur", () => {
     // Delay so a click on a suggestion (see mousedown below) registers
     // before the list disappears.
@@ -175,6 +221,14 @@ function attachDeckAutocomplete(input) {
     if (!item) return;
     e.preventDefault(); // keep focus on the input instead of blurring first
     input.value = item.dataset.value;
+    // A trailing "::" means the row was "new subdeck under X…" -- a prefix to
+    // finish typing, not a deck to commit. Stay open and keep the cursor here.
+    if (input.value.endsWith("::")) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+      show();
+      return;
+    }
     list.classList.add("hidden");
     input.dispatchEvent(new Event("change", { bubbles: true }));
   });
